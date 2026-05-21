@@ -209,13 +209,13 @@ subroutine init_detector(this, field_ch, detector_ch, dimensions, &
         case (POINT_DETECTOR)
             !Some change of notations since in 1D the z-axis is the only axis,
             !and just nx is declared.
-            this%k_min = int(z_min/dr) + int(nx_tot/2)
+            this%k_min = int(x_min/dr) + int(nx_tot/2)
             nd = 1
             if (.not. allocated(this%indx_list)) allocate(this%indx_list(nd, dimensions))
             this%indx_list(1,1) = this%k_min
         case (LINE_Z_DETECTOR)
-            this%k_min = int(z_min/dr) + int(nx_tot/2)
-            this%k_max = int(z_max/dr) + int(nx_tot/2)
+            this%k_min = int(x_min/dr) + int(nx_tot/2)
+            this%k_max = int(x_max/dr) + int(nx_tot/2)
             do ii = 1, nx_tot
                 if (ii >= this%k_min .and. ii <= this%k_max) then
                     nd = nd + 1

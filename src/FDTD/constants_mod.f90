@@ -57,7 +57,8 @@ module constants_mod
     integer, public, parameter :: &
     TMZ_2D_MODE   = 1,                &
     TEZ_2D_MODE   = 2,                &
-    FULL_2D_MODE  = 3
+    FULL_2D_MODE  = 3,                &
+    AUX_GRID_MODE = 4 ! USED INTERNALLY.
 
     integer, public, parameter :: &
     NONE_MEDIUM        = 0,                &
@@ -103,6 +104,5 @@ module constants_mod
     PRINT_NONE = 0,                &
     PRINT_ALL  = 1,               &
     PRINT_SELECTED = 2
-
 
 end module constants_mod

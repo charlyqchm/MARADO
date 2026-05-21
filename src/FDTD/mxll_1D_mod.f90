@@ -12,6 +12,7 @@ module mxll_1D_mod
 
         integer               :: nz
         integer               :: boundaries
+        logical               :: cpml_pos(2) = .false.
 
         integer      , allocatable :: media_map(:)
         real(dp)     , allocatable :: Ex(:)
@@ -151,6 +152,14 @@ contains
 
             sigmaCPML = 0.8 * (m + 1) / (dr * (mu0 / eps0)**0.5)
 
+            this%cpml_pos(1) = .true.
+            this%cpml_pos(2) = .true.
+            
+            if (mode == AUX_GRID_MODE) then
+                this%cpml_pos(1) = .false.
+            end if
+
+
             do kk = 1, npml
                 sige(kk)   = sigmaCPML * ((npml - kk) / (npml - 1.0))**m
                 alphae(kk) = alphaCPML * sig_to_au * ((kk - 1) / (npml - 1.0))**ma
@@ -173,13 +182,13 @@ contains
                 this%bh(kk) = exp(-(sigh(kk) / kappah(kk) + alphah(kk)) * dt / eps0)
                 this%ch(kk) = sigh(kk) * (this%bh(kk) - 1.0) / &
                         (sigh(kk) + kappah(kk) * alphah(kk)) / kappah(kk)
-            end do  
-            
+            end do
+        
             kk=npml
             do k=1,nz-1
-                if(k<=npml)then
+                if(k<=npml .and. this%cpml_pos(1))then
                     this%den_ez(k)=1.0/(kappae(k)*dr)
-                else if(k>=(nz+1-npml))then
+                else if(k>=(nz+1-npml ) .and. this%cpml_pos(2))then
                     this%den_ez(k)=1.0/(kappae(kk)*dr)
                     kk=kk-1
                 else
@@ -189,9 +198,9 @@ contains
 
             kk=npml-1
             do k=1, nz-1
-                if(k<=(npml-1))then
+                if(k<=(npml-1) .and. this%cpml_pos(1))then
                     this%den_hz(k)=1.0/(kappah(k)*dr)
-                elseif(k>=(nz+1-npml))then
+                elseif(k>=(nz+1-npml) .and. this%cpml_pos(2))then
                     this%den_hz(k)=1.0/(kappah(kk)*dr)
                     kk=kk-1
                 else
@@ -200,7 +209,6 @@ contains
             enddo
 
         end if
-
 
         if (allocated(alphae)) deallocate(alphae)
         if (allocated(alphah)) deallocate(alphah)
@@ -275,13 +283,17 @@ contains
             this%Hy(i) = this%Hy(i) + this%dt_mu0 * (this%Ex(i)-this%Ex(i+1))*this%den_hz(i)
         enddo
         
-        if (this%boundaries == CPML_BOUNDARIES) then
+        if (this%cpml_pos(1)) then
             !  PML for the left side Hy
             do i=1,npml-1
                 this%psiz_Hyz(i) = this%bh(i)*this%psiz_Hyz(i)+ &
                                     this%ch(i)*(this%Ex(i)-this%Ex(i+1))/this%dr
                 this%Hy(i) = this%Hy(i)+this%dt_mu0*this%psiz_Hyz(i)
             enddo
+
+        end if
+
+        if (this%cpml_pos(2)) then
             !  PML for the right side Hy
             kk=2*(npml-1)
             do i=nz+1-npml,nz-1
@@ -335,13 +347,16 @@ contains
         end do             
 
         !  PML for the left side Ex
-        if (this%boundaries == CPML_BOUNDARIES) then
+        if (this%cpml_pos(1)) then
             do i=2,npml
                 rotH             = (this%Hy(i-1)-this%Hy(i))/this%dr
                 this%psiz_Exz(i) = this%be(i)*this%psiz_Exz(i)+this%ce(i)*rotH
                 this%Ex(i)       = this%Ex(i) + this%dt_eps0*this%psiz_Exz(i)
             enddo
-            !  PML for right side Ex
+
+        end if
+        !  PML for right side Ex
+        if (this%cpml_pos(2)) then
             kk=2*npml
             do i=nz+1-npml,nz-1
                 rotH              = (this%Hy(i-1)-this%Hy(i))/this%dr

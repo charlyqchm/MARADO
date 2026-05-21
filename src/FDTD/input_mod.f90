@@ -12,8 +12,6 @@ module input_mod
     integer            :: mxll_dimensions       = 1
     ! Mxll PML thickness in number of grid points.
     integer            :: mxll_npml             = 19
-    ! Number of sources to check in the "sources.in" file.
-    integer            :: mxll_n_src            = 0
     ! Number of media to check in the "medium_xxxx.in" file.
     integer            :: mxll_n_media          = 0
     ! Number of quantum groups to check in the "mol_group_xxxxxxx.in" file.
@@ -44,7 +42,7 @@ module input_mod
 contains
 
 subroutine read_input_file(boundaries, mode_2D, dimensions, npml, grid_Ndims, &
-                           Nt, dr, dt, dt_q, density_factor, mpi_dims, eps_r, n_src, n_media, &
+                           Nt, dr, dt, dt_q, density_factor, mpi_dims, eps_r, n_media, &
                            n_q_groups, n_detectors, dt_det_print, dt_q_print)
     
     integer   , intent(out) :: boundaries(3)
@@ -53,7 +51,6 @@ subroutine read_input_file(boundaries, mode_2D, dimensions, npml, grid_Ndims, &
     integer   , intent(out) :: npml
     integer   , intent(out) :: grid_Ndims(3)
     integer   , intent(out) :: Nt
-    integer   , intent(out) :: n_src
     integer   , intent(out) :: n_media
     integer   , intent(out) :: n_q_groups
     integer   , intent(out) :: n_detectors
@@ -69,7 +66,7 @@ subroutine read_input_file(boundaries, mode_2D, dimensions, npml, grid_Ndims, &
     integer :: i 
 
     namelist /OMxRTA/ mxll_boundaries, mxll_2D_mode, mxll_dimensions, mxll_npml, &
-                         mxll_n_src, mxll_box_size, mxll_total_time, mxll_dr, mxll_dt, &
+                         mxll_box_size, mxll_total_time, mxll_dr, mxll_dt, &
                          mxll_density_factor, mxll_eps_r, mxll_n_media, mxll_n_q_groups, &
                          mxll_dt_q, mpi_procs_per_axis, mxll_n_detectors, mxll_dt_det_print, &
                          mxll_dt_q_print
@@ -114,7 +111,6 @@ subroutine read_input_file(boundaries, mode_2D, dimensions, npml, grid_Ndims, &
 
     dimensions     = mxll_dimensions
     npml           = mxll_npml
-    n_src          = mxll_n_src
     n_media        = mxll_n_media
     n_q_groups     = mxll_n_q_groups
     n_detectors    = mxll_n_detectors

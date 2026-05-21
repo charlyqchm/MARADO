@@ -4,7 +4,7 @@ program mxim_mxll
     use mxll_base_mod
     use factory_mod
     use input_mod
-    use source_mod
+    use sources_subs_mod
     use interactions_mod
     use parallel_subs_mod
     use q_group_mod
@@ -13,10 +13,10 @@ program mxim_mxll
 
     implicit none
 
-    class(TMxll),    allocatable :: mxll
-    type(TSource),   allocatable :: source_list(:)
-    type(TQ_group),  allocatable :: q_groups(:)
-    type(TDetector), allocatable :: detectors(:)
+    class(TMxll)   ,allocatable :: mxll
+    type(TQ_group) ,allocatable :: q_groups(:)
+    type(TDetector),allocatable :: detectors(:)
+    type(TSources_list)         :: sources
     integer                     :: boundaries(3)
     integer                     :: mode_2D
     integer                     :: mpi_coords(3) = 0
@@ -24,7 +24,6 @@ program mxim_mxll
     integer                     :: myrank = 0
     integer                     :: dimensions
     integer                     :: npml
-    integer                     :: n_src
     integer                     :: n_media
     integer                     :: n_q_groups
     integer                     :: grid_Ndims(3)
@@ -49,9 +48,9 @@ program mxim_mxll
     integer  :: i, j
     real(dp) :: time
 
-    !TO-DO: With a huge number of MPI_ranks, this subroutine may be a bottleneck.
+    !TO-DO: With a huge number of MPI_ranks, this subroutine might be a bottleneck.
     call read_input_file(boundaries, mode_2D, dimensions, npml, grid_Ndims, &
-                         Nt, dr, dt, dt_q, density_factor, mpi_dims, eps_r, n_src, n_media, &
+                         Nt, dr, dt, dt_q, density_factor, mpi_dims, eps_r, n_media, &
                          n_q_groups, n_detectors, dt_det_print, dt_q_print)
 
     n_procs = mpi_dims(1)*mpi_dims(2)*mpi_dims(3)
@@ -62,7 +61,7 @@ program mxim_mxll
 
     if (.not. allocated(q_groups)) allocate(q_groups(n_q_groups))
 
-    call read_init_sources(source_list, n_src, dimensions, dr, grid_Ndims, mpi_coords, mpi_dims)
+    call sources%read_init_sources(dimensions, dt, dr, grid_Ndims, mpi_coords, mpi_dims)
 
     call mxll%init(grid_Ndims, npml, boundaries, dt, dr, mode_2D, n_media, mpi_coords, mpi_dims) 
     
@@ -103,13 +102,22 @@ program mxim_mxll
             if (n_q_groups == 0) move_q_system = .false.
         end if
        
+        call sources%propagate_p_srcs(time)
+        ! call sources%propagate_pw_srcs(time)
+
         call exchange_E_field_between_ranks(mxll)
+
+        call plane_waves_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
+
         call mxll%td_propagate_H_field()   
        
-        call update_sources(source_list, n_src, time)
-        call source_interactions(mxll, source_list, n_src)
-        
+        call sources%propagate_pw_srcs(time)
+
         call exchange_H_field_between_ranks(mxll)
+      
+        call plane_waves_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
+        call point_source_interactions(mxll, sources)
+
         call mxll%td_propagate_E_field(tt)
         
         call expand_E_field_between_ranks(mxll, move_q_system)
@@ -131,7 +139,8 @@ program mxim_mxll
 
     end do
 
-    call kill_sources(source_list, n_src)
+    call sources%kill_sources()
+    
     call mxll%kill()
     do i = 1, n_q_groups
         call q_groups(i)%kill_q_group()

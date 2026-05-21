@@ -5,7 +5,7 @@ module interactions_mod
 #endif
 
     use constants_mod
-    use source_mod
+    use sources_subs_mod
     use mxll_base_mod
     use mxll_1D_mod
     use mxll_2D_mod
@@ -18,10 +18,9 @@ contains
 
 !###################################################################################################
 
-subroutine source_interactions(mxll, source_list, n_sources)
-    class(TMxll) ,intent(inout) :: mxll
-    type(TSource),intent(in)    :: source_list(n_sources)
-    integer      ,intent(in)    :: n_sources
+subroutine point_source_interactions(mxll, sources)
+    class(TMxll)       ,intent(inout) :: mxll
+    type(TSources_list),intent(inout) :: sources
 
     integer  :: i, j, k, s
     integer  :: i_id, j_id, k_id
@@ -38,13 +37,13 @@ subroutine source_interactions(mxll, source_list, n_sources)
         if (.not. allocated(mxll%Ex)) return
 #endif
 
-        do s=1, n_sources
-            n_ker = source_list(s)%n_ker
-            select case (source_list(s)%dir)
+        do s=1, sources%n_p_src
+            n_ker = sources%points(s)%n_ker
+            select case (sources%points(s)%polarization)
             case ('x')
                 do i=-n_ker, n_ker
-                    i_id = source_list(s)%ind_i(i,1,1)
-                    J_av = source_list(s)%J_mat(i,1,1)
+                    i_id = sources%points(s)%ind_i(i,1,1)
+                    J_av = sources%points(s)%J_mat(i,1,1)
                     mxll%Ex(i_id) = mxll%Ex(i_id) + c_src * J_av
                 end do
             case default
@@ -55,17 +54,17 @@ subroutine source_interactions(mxll, source_list, n_sources)
 
     class is(TMxll_2D)
     
-        do s=1, n_sources
-            n_ker = source_list(s)%n_ker
-            select case (source_list(s)%dir)
+        do s=1, sources%n_p_src
+            n_ker = sources%points(s)%n_ker
+            select case (sources%points(s)%polarization)
             case ('x')
                 do i=-n_ker, n_ker
                 do j=-n_ker, n_ker
-                    if (source_list(s)%in_this_rank(i,j,1)) then
-                        i_id = source_list(s)%ind_i(i,j,1)
-                        j_id = source_list(s)%ind_j(i,j,1)
-                        J_av = 0.5d0*(source_list(s)%J_mat(i,j,1) + &
-                                        source_list(s)%J_mat(i+1,j,1))
+                    if (sources%points(s)%in_this_rank(i,j,1)) then
+                        i_id = sources%points(s)%ind_i(i,j,1)
+                        j_id = sources%points(s)%ind_j(i,j,1)
+                        J_av = 0.5d0*(sources%points(s)%J_mat(i,j,1) + &
+                                        sources%points(s)%J_mat(i+1,j,1))
                         mxll%Ex(i_id,j_id) = mxll%Ex(i_id,j_id) + c_src * J_av
                     end if
                 end do
@@ -73,11 +72,11 @@ subroutine source_interactions(mxll, source_list, n_sources)
             case ('y')
                 do i=-n_ker, n_ker
                 do j=-n_ker, n_ker
-                    if (source_list(s)%in_this_rank(i,j,1)) then
-                        i_id = source_list(s)%ind_i(i,j,1)
-                        j_id = source_list(s)%ind_j(i,j,1)
-                        J_av = 0.5d0*(source_list(s)%J_mat(i,j,1) + &
-                                        source_list(s)%J_mat(i,j+1,1))
+                    if (sources%points(s)%in_this_rank(i,j,1)) then
+                        i_id = sources%points(s)%ind_i(i,j,1)
+                        j_id = sources%points(s)%ind_j(i,j,1)
+                        J_av = 0.5d0*(sources%points(s)%J_mat(i,j,1) + &
+                                        sources%points(s)%J_mat(i,j+1,1))
                         mxll%Ey(i_id,j_id) = mxll%Ey(i_id,j_id) + c_src * J_av
                     end if
                 end do
@@ -85,10 +84,10 @@ subroutine source_interactions(mxll, source_list, n_sources)
             case ('z')
                 do i=-n_ker, n_ker
                 do j=-n_ker, n_ker
-                    if (source_list(s)%in_this_rank(i,j,1)) then
-                        i_id = source_list(s)%ind_i(i,j,1)
-                        j_id = source_list(s)%ind_j(i,j,1)
-                        J_av = source_list(s)%J_mat(i,j,1)
+                    if (sources%points(s)%in_this_rank(i,j,1)) then
+                        i_id = sources%points(s)%ind_i(i,j,1)
+                        j_id = sources%points(s)%ind_j(i,j,1)
+                        J_av = sources%points(s)%J_mat(i,j,1)
                         mxll%Ez(i_id,j_id) = mxll%Ez(i_id,j_id) + c_src * J_av
                     end if
                 end do
@@ -101,19 +100,19 @@ subroutine source_interactions(mxll, source_list, n_sources)
 
     class is(TMxll_3D)
     
-        do s=1, n_sources
-            n_ker = source_list(s)%n_ker
-            select case (source_list(s)%dir)
+        do s=1, sources%n_p_src
+            n_ker = sources%points(s)%n_ker
+            select case (sources%points(s)%polarization)
             case ('x')
                 do i=-n_ker, n_ker
                 do j=-n_ker, n_ker
                 do k=-n_ker, n_ker
-                    if (source_list(s)%in_this_rank(i,j,k)) then
-                        i_id = source_list(s)%ind_i(i,j,k)
-                        j_id = source_list(s)%ind_j(i,j,k)
-                        k_id = source_list(s)%ind_k(i,j,k)
-                        J_av = 0.5d0*(source_list(s)%J_mat(i,j,k) + &
-                                        source_list(s)%J_mat(i+1,j,k))
+                    if (sources%points(s)%in_this_rank(i,j,k)) then
+                        i_id = sources%points(s)%ind_i(i,j,k)
+                        j_id = sources%points(s)%ind_j(i,j,k)
+                        k_id = sources%points(s)%ind_k(i,j,k)
+                        J_av = 0.5d0*(sources%points(s)%J_mat(i,j,k) + &
+                                        sources%points(s)%J_mat(i+1,j,k))
                         mxll%Ex(i_id,j_id,k_id) = mxll%Ex(i_id,j_id,k_id) + c_src * J_av
                     end if
                 end do
@@ -123,12 +122,12 @@ subroutine source_interactions(mxll, source_list, n_sources)
                 do i=-n_ker, n_ker
                 do j=-n_ker, n_ker
                 do k=-n_ker, n_ker
-                    if (source_list(s)%in_this_rank(i,j,k)) then
-                        i_id = source_list(s)%ind_i(i,j,k)
-                        j_id = source_list(s)%ind_j(i,j,k)
-                        k_id = source_list(s)%ind_k(i,j,k)
-                        J_av = 0.5d0*(source_list(s)%J_mat(i,j,k) + &
-                                        source_list(s)%J_mat(i,j+1,k))
+                    if (sources%points(s)%in_this_rank(i,j,k)) then
+                        i_id = sources%points(s)%ind_i(i,j,k)
+                        j_id = sources%points(s)%ind_j(i,j,k)
+                        k_id = sources%points(s)%ind_k(i,j,k)
+                        J_av = 0.5d0*(sources%points(s)%J_mat(i,j,k) + &
+                                        sources%points(s)%J_mat(i,j+1,k))
                         mxll%Ey(i_id,j_id,k_id) = mxll%Ey(i_id,j_id,k_id) + c_src * J_av
                     end if
                 end do
@@ -138,12 +137,12 @@ subroutine source_interactions(mxll, source_list, n_sources)
                 do i=-n_ker, n_ker
                 do j=-n_ker, n_ker
                 do k=-n_ker, n_ker
-                    if (source_list(s)%in_this_rank(i,j,k)) then
-                        i_id = source_list(s)%ind_i(i,j,k)
-                        j_id = source_list(s)%ind_j(i,j,k)
-                        k_id = source_list(s)%ind_k(i,j,k)
-                        J_av = 0.5d0*(source_list(s)%J_mat(i,j,k) + &
-                                        source_list(s)%J_mat(i,j,k+1))
+                    if (sources%points(s)%in_this_rank(i,j,k)) then
+                        i_id = sources%points(s)%ind_i(i,j,k)
+                        j_id = sources%points(s)%ind_j(i,j,k)
+                        k_id = sources%points(s)%ind_k(i,j,k)
+                        J_av = 0.5d0*(sources%points(s)%J_mat(i,j,k) + &
+                                        sources%points(s)%J_mat(i,j,k+1))
                         mxll%Ez(i_id,j_id,k_id) = mxll%Ez(i_id,j_id,k_id) + c_src * J_av
                     end if
                 end do
@@ -156,14 +155,608 @@ subroutine source_interactions(mxll, source_list, n_sources)
         end do
 
     class default
-        print *, "Error: Unknown mxll type in source_interactions."
+        print *, "Error: Unknown mxll type in point_source_interactions."
         stop
     end select
 
-end subroutine source_interactions
+end subroutine point_source_interactions
 
 !###################################################################################################
+
+subroutine plane_waves_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
+    class(TMxll)       ,intent(inout) :: mxll
+    type(TSources_list),intent(inout) :: sources
+    integer            , intent(in)   :: mpi_coords(3)
+    integer            , intent(in)   :: mpi_dims(3)
+    real(dp)           , intent(in)   :: time
+
+    integer  :: s
+    integer  :: i_min, j_min, k_min
+    integer  :: i_max, j_max, k_max
+    integer  :: i, j ,k
+    integer  :: i0, j0, k0
+    integer  :: i_min_loc, j_min_loc, k_min_loc
+    integer  :: i_max_loc, j_max_loc, k_max_loc
+    integer  :: nx, ny, nz
+    integer  :: d_int
+    integer  :: m0 = 10
+    real(dp) :: sin_psi
+    real(dp) :: cos_psi
+    real(dp) :: cos_phi
+    real(dp) :: sin_phi
+    real(dp) :: d, d_p, d_pp
+    real(dp) :: dx_aux
+    real(dp) :: dr_main
+    real(dp) :: A_vec(3)
+    real(dp) :: P_vec(3)
+    real(dp) :: v_vec(3)
+    real(dp) :: w_vec(3)
+    real(dp) :: k_vec(3)
+    real(dp) :: Ex_inc, Ey_inc, Ez_inc
+    real(dp) :: dt_mu
+
+    select type(mxll)
+    class is(TMxll_1D)
+    class is(TMxll_2D)
+
+        nx       = mxll%nx
+        ny       = mxll%ny
+        dt_mu    = mxll%dt/mu0/mxll%dr
+        dr_main  = mxll%dr
+
+        do s=1, sources%n_pw_src
+
+            i_min   = sources%plane_waves(s)%i_min
+            i_max   = sources%plane_waves(s)%i_max
+            j_min   = sources%plane_waves(s)%j_min
+            j_max   = sources%plane_waves(s)%j_max
+
+            P_vec    = 0.0d0
+            w_vec    = 0.0d0
+            A_vec    = sources%plane_waves(s)%A_vec
+            v_vec    = sources%plane_waves(s)%v_vec
+            dx_aux   = sources%plane_waves(s)%mxll_inc%dr
+            
+            cos_psi  = DCOS(sources%plane_waves(s)%psi)
+            sin_psi  = DSIN(sources%plane_waves(s)%psi)
+            cos_phi  = DCOS(sources%plane_waves(s)%phi - pi0/2)
+            sin_phi  = DSIN(sources%plane_waves(s)%phi - pi0/2)
+
+            if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+                if (mxll%mode == TMZ_2D_MODE) sin_psi = 1.0d0
+
+                if (sources%plane_waves(s)%i_min_in_this_rank) then
+
+                    i_min_loc = sources%plane_waves(s)%i_min_loc
+
+                    P_vec(1) = (i_min - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+                            
+                            Ez_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0) + &
+                                     d_p   * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0+1)
+
+                            mxll%Hy(i_min_loc-1,j) = mxll%Hy(i_min_loc-1,j) - &
+                                                     dt_mu * sin_psi * Ez_inc
+                    
+                        end if
+                    end do
+
+                end if
+
+                if (sources%plane_waves(s)%i_max_in_this_rank) then
+
+                    i_max_loc = sources%plane_waves(s)%i_max_loc
+
+                    P_vec(1) = (i_max - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+                            
+                            Ez_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0) + &
+                                     d_p   * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0+1)
+
+                            mxll%Hy(i_max_loc,j) = mxll%Hy(i_max_loc, j) + &
+                                                   dt_mu * sin_psi * Ez_inc
+                    
+                        end if
+                    end do
+
+                end if
+
+                if (sources%plane_waves(s)%j_min_in_this_rank) then
+
+                    j_min_loc = sources%plane_waves(s)%j_min_loc
+
+                    P_vec(2) = (j_min - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+                            
+                            Ez_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0) + &
+                                        d_p   * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0+1)
+
+                            mxll%Hx(i,j_min_loc-1) = mxll%Hx(i,j_min_loc-1) + &
+                                                     dt_mu * sin_psi * Ez_inc
+                        end if
+                    end do
+
+                end if
+
+                if (sources%plane_waves(s)%j_max_in_this_rank) then
+                    j_max_loc = sources%plane_waves(s)%j_max_loc
+
+                    P_vec(2) = (j_max - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+                            
+                            Ez_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0) + &
+                                        d_p   * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0+1)
+
+                            mxll%Hx(i,j_max_loc) = mxll%Hx(i,j_max_loc) - &
+                                                     dt_mu * sin_psi * Ez_inc
+                        end if
+                    end do
+
+                end if
+                
+            end if
+
+            if (mxll%mode == TEZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+                if (mxll%mode == TEZ_2D_MODE) cos_psi = 1.0d0
+
+                if (sources%plane_waves(s)%i_min_in_this_rank) then
+
+                    i_min_loc = sources%plane_waves(s)%i_min_loc
+
+                    P_vec(1) = (i_min - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max-1 .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+
+                            Ey_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0) + &
+                                        d_p   * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0+1)
+
+                            mxll%Hz(i_min_loc-1,j) = mxll%Hz(i_min_loc-1,j) + &
+                                                     dt_mu * sin_phi * cos_psi * Ey_inc
+
+                        end if
+                    end do
+                end if
+
+                if (sources%plane_waves(s)%i_max_in_this_rank) then
+
+                    i_max_loc = sources%plane_waves(s)%i_max_loc
+
+                    P_vec(1) = (i_max - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max-1 .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+
+                            Ey_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0) + &
+                                        d_p   * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0+1)
+
+                            mxll%Hz(i_max_loc,j) = mxll%Hz(i_max_loc,j) - &
+                                                    dt_mu * sin_phi * cos_psi * Ey_inc
+                        end if
+                    end do
+                end if
+                        
+                if (sources%plane_waves(s)%j_min_in_this_rank) then
+
+                    j_min_loc = sources%plane_waves(s)%j_min_loc
+
+                    P_vec(2) = (j_min - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max-1 .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+
+                            Ex_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0) + &
+                                        d_p   * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0+1)
+                        
+                            mxll%Hz(i,j_min_loc-1) = mxll%Hz(i,j_min_loc-1) - &
+                                                     dt_mu * cos_phi * cos_psi * Ex_inc
+                        end if
+                    end do
+
+                end if
+
+                if (sources%plane_waves(s)%j_max_in_this_rank) then
+                    j_max_loc = sources%plane_waves(s)%j_max_loc
+
+                    P_vec(2) = (j_max - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max-1 .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+
+                            Ex_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0) + &
+                                        d_p   * sources%plane_waves(s)%mxll_inc%Ex(d_int+m0+1)
+                        
+                            mxll%Hz(i,j_max_loc) = mxll%Hz(i,j_max_loc) + &
+                                                     dt_mu * cos_phi * cos_psi * Ex_inc
+                        end if
+                    end do
+                end if
+
+            end if
+
+
+        end do
+    class is(TMxll_3D)
+    end select
+
+end subroutine plane_waves_E_interactions
+!###################################################################################################
+
+subroutine plane_waves_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
+    class(TMxll)       ,intent(inout) :: mxll
+    type(TSources_list),intent(inout) :: sources
+    integer            , intent(in)   :: mpi_coords(3)
+    integer            , intent(in)   :: mpi_dims(3)
+    real(dp)           , intent(in)   :: time
+
+    integer  :: s
+    integer  :: i_min, j_min, k_min
+    integer  :: i_max, j_max, k_max
+    integer  :: i, j ,k
+    integer  :: i0, j0, k0
+    integer  :: i_min_loc, j_min_loc, k_min_loc
+    integer  :: i_max_loc, j_max_loc, k_max_loc
+    integer  :: nx, ny, nz
+    integer  :: d_int
+    integer  :: m0 = 10
+    real(dp) :: sin_psi
+    real(dp) :: cos_psi
+    real(dp) :: cos_phi
+    real(dp) :: sin_phi
+    real(dp) :: d, d_p, d_pp
+    real(dp) :: dx_aux
+    real(dp) :: dr_main
+    real(dp) :: A_vec(3)
+    real(dp) :: P_vec(3)
+    real(dp) :: v_vec(3)
+    real(dp) :: w_vec(3)
+    real(dp) :: k_vec(3)
+    real(dp) :: Hx_inc, Hy_inc, Hz_inc
+    real(dp) :: dt_eps
+
+    select type(mxll)
+    class is(TMxll_1D)
+    class is(TMxll_2D)
+
+        nx       = mxll%nx
+        ny       = mxll%ny
+        dt_eps   = mxll%dt/eps0/mxll%dr
+        dr_main  = mxll%dr
+
+        do s = 1, sources%n_pw_src
+
+            i_min   = sources%plane_waves(s)%i_min
+            i_max   = sources%plane_waves(s)%i_max
+            j_min   = sources%plane_waves(s)%j_min
+            j_max   = sources%plane_waves(s)%j_max
+
+            P_vec    = 0.0d0
+            w_vec    = 0.0d0
+            A_vec    = sources%plane_waves(s)%A_vec
+            v_vec    = sources%plane_waves(s)%v_vec
+            dx_aux   = sources%plane_waves(s)%mxll_inc%dr
+            
+            cos_psi  = DCOS(sources%plane_waves(s)%psi - pi0/2)
+            sin_psi  = DSIN(sources%plane_waves(s)%psi - pi0/2)
+            cos_phi  = DCOS(sources%plane_waves(s)%phi - pi0/2)
+            sin_phi  = DSIN(sources%plane_waves(s)%phi - pi0/2)
+
+            if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+                if (mxll%mode == TMZ_2D_MODE) cos_psi = 1.0d0
+
+                if (sources%plane_waves(s)%i_min_in_this_rank) then
+
+                    i_min_loc = sources%plane_waves(s)%i_min_loc
+
+                    P_vec(1) = (i_min - 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                            
+                            Hy_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0-1) + &
+                                      d_p   * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0)
+
+                            mxll%Ez(i_min_loc, j) = mxll%Ez(i_min_loc, j) - &
+                                                     dt_eps * sin_phi * cos_psi * Hy_inc
+
+                        end if
+                    end do
+
+                end if
+
+                if (sources%plane_waves(s)%i_max_in_this_rank) then
+
+                    i_max_loc = sources%plane_waves(s)%i_max_loc
+
+                    P_vec(1) = (i_max + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                            
+                            Hy_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0-1) + &
+                                      d_p   * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0)
+
+                            mxll%Ez(i_max_loc, j) = mxll%Ez(i_max_loc, j) + &
+                                                       dt_eps * sin_phi * cos_psi * Hy_inc
+                                      
+                        end if
+                    end do
+
+                end if
+
+                if (sources%plane_waves(s)%j_min_in_this_rank) then
+
+                    j_min_loc = sources%plane_waves(s)%j_min_loc
+
+                    P_vec(2) = (j_min - 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            Hx_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0-1) + &
+                                      d_p   * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0)
+                        
+                            mxll%Ez(i,j_min_loc) = mxll%Ez(i,j_min_loc) + &
+                                                     dt_eps * cos_phi * cos_psi * Hx_inc
+                        end if
+                    end do
+
+                end if
+
+                if (sources%plane_waves(s)%j_max_in_this_rank) then
+                    j_max_loc = sources%plane_waves(s)%j_max_loc
+
+                    P_vec(2) = (j_max + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            Hx_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0-1) + &
+                                      d_p   * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0)
+                        
+                            mxll%Ez(i,j_max_loc) = mxll%Ez(i,j_max_loc) - &
+                                                     dt_eps * cos_phi * cos_psi * Hx_inc
+                        end if
+                    end do
+
+                end if
+
+            end if
+
+            if (mxll%mode == TEZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+                if (mxll%mode == TEZ_2D_MODE) sin_psi = -1.0d0
+
+                if (sources%plane_waves(s)%i_min_in_this_rank) then
+
+                    i_min_loc = sources%plane_waves(s)%i_min_loc
+
+                    P_vec(1) = (i_min - 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max-1 .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            Hz_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0-1) + &
+                                    d_p   * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0)
+
+                            mxll%Ey(i_min_loc, j) = mxll%Ey(i_min_loc, j) + &
+                                                    dt_eps * sin_psi * Hz_inc
+                            
+                        end if
+                    end do
+                end if
     
+                if (sources%plane_waves(s)%i_max_in_this_rank) then
+
+                    i_max_loc = sources%plane_waves(s)%i_max_loc
+
+                    P_vec(1) = (i_max + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max-1 .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            Hz_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0-1) + &
+                                    d_p   * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0)
+
+                            mxll%Ey(i_max_loc, j) = mxll%Ey(i_max_loc, j) - &
+                                                    dt_eps * sin_psi * Hz_inc
+                            
+                        end if
+                    end do
+                end if
+
+                if (sources%plane_waves(s)%j_min_in_this_rank) then
+
+                    j_min_loc = sources%plane_waves(s)%j_min_loc
+
+                    P_vec(2) = (j_min - 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max-1 .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            Hz_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0-1) + &
+                                    d_p   * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0)
+
+                            mxll%Ex(i,j_min_loc) = mxll%Ex(i,j_min_loc) - &
+                                                    dt_eps * sin_psi * Hz_inc
+                        end if
+                    end do
+                end if
+
+                if (sources%plane_waves(s)%j_max_in_this_rank) then
+                    j_max_loc = sources%plane_waves(s)%j_max_loc
+
+                    P_vec(2) = (j_max + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max-1 .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            Hz_inc = (1-d_p) * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0-1) + &
+                                    d_p   * sources%plane_waves(s)%mxll_inc%Hy(d_int+m0)
+
+                            mxll%Ex(i,j_max_loc) = mxll%Ex(i,j_max_loc) + &
+                                                    dt_eps * sin_psi * Hz_inc
+                        end if
+                    end do
+                end if
+
+            end if
+
+        end do
+
+    class is(TMxll_3D)
+    end select
+
+end subroutine plane_waves_H_interactions
+
+!###################################################################################################    
 subroutine send_E_to_J_ranks(mxll, q_group, move_q_system, myrank)
 
     class(TMxll)  , intent(inout) :: mxll
