@@ -58,6 +58,11 @@ module sources_subs_mod
 
         type(TMxll_1D)      :: mxll_inc
         integer             :: dim
+        !Logical to indicate whether the limits of the plane wave source in each direction are 
+        !delimited by the user or they extend to the whole box.
+        !The component 1,2 or 3 become .false. if the option "plane_wave_kx", "plane_wave_ky" &
+        !or "plane_wave_kz" is selected, respectively.
+        logical             :: limited_axis(3) = .true. 
         real(dp)            :: E_amp
         !Assuming the k vector is initially parallel to z, the E field to x and the H field to y,
         !phi is the angle respect to x, theta is the angle respect to z and psi is the angle
@@ -110,6 +115,8 @@ subroutine read_init_sources(this, dimensions, dt, dr, grid_Ndims, mpi_coords, m
     character(len = 15)   :: src_type_ch
 
     character(len=20) :: src_file = "sources.in"
+    logical           :: pw_source
+    logical           :: p_source 
     integer           :: ierr, funit
     integer           :: i
     integer           :: n_p_src, n_pw_src
@@ -132,13 +139,21 @@ subroutine read_init_sources(this, dimensions, dt, dr, grid_Ndims, mpi_coords, m
     n_pw_src = 0
 
     do
+
+        pw_source = .false.
+        p_source  = .false.
+
         read (unit=funit, fmt=*, iostat=ierr) src_type_ch
 
         if (ierr /= 0) exit
 
-        if (trim(src_type_ch) == "point") then
+        p_source  = (trim(src_type_ch) == "point")
+        pw_source = any(trim(src_type_ch) == [character(len=15) :: "plane_wave", &
+                    "plane_wave_kx", "plane_wave_ky", "plane_wave_kz"])
+
+        if (p_source) then
             n_p_src = n_p_src + 1
-        else if (trim(src_type_ch) == "plane_wave") then
+        else if (pw_source) then
             n_pw_src = n_pw_src + 1
         else
             write (*, '("Error: unknown source type ", A)') trim(src_type_ch)
@@ -165,17 +180,25 @@ subroutine read_init_sources(this, dimensions, dt, dr, grid_Ndims, mpi_coords, m
     n_pw_src = 1
 
     do
+
+        p_source  = .false.
+        pw_source = .false.
+
         read (unit=funit, fmt='(A)', iostat=ierr) input_ch
 
         if (ierr /= 0) exit
 
         read (input_ch, *) src_type_ch
 
-        if (trim(src_type_ch) == "point") then
+        p_source  = (trim(src_type_ch) == "point")
+        pw_source = any(trim(src_type_ch) == [character(len=15) :: "plane_wave", &
+                    "plane_wave_kx", "plane_wave_ky", "plane_wave_kz"])
+
+        if (p_source) then
             call this%points(n_p_src)%init_point_src(input_ch, dimensions, dt, dr, &
                                                             grid_Ndims, mpi_coords, mpi_dims)
             n_p_src = n_p_src + 1
-        else if (trim(src_type_ch) == "plane_wave") then
+        else if (pw_source) then
             call this%plane_waves(n_pw_src)%init_plane_wave_src(input_ch, dimensions, &
                                                         dt , dr, grid_Ndims, mpi_coords, mpi_dims)
             n_pw_src = n_pw_src + 1
@@ -391,11 +414,36 @@ subroutine init_plane_wave_src(this, input_ch, dim, dt, dr, grid_Ndims, mpi_coor
                       x_min, x_max, y_min, y_max, z_min, z_max, &
                       t_init, t_final, phase
 
+    select case (trim(type_src_ch))
+    case ("plane_wave_kx")
+        this%limited_axis(2) = .false.
+        this%limited_axis(3) = .false.
+        phi                  =  0.0d0
+        theta                = 90.0d0
+    case ("plane_wave_ky")
+        this%limited_axis(1) = .false.
+        this%limited_axis(3) = .false.
+        phi                  = 90.0d0
+        theta                = 90.0d0
+    case ("plane_wave_kz")
+        this%limited_axis(1) = .false.
+        this%limited_axis(2) = .false.
+        phi                  = 0.0d0
+        theta                = 0.0d0
+    end select
+
     this%dim          = dim
     this%E_amp        = E_amp
-    this%phi          = phi/180.0d0*pi0
+
+    this%phi = phi/180.0d0*pi0
     this%theta        = theta/180.0d0*pi0
     this%psi          = psi/180.0d0*pi0
+
+    if (this%phi < 0.0d0)   this%phi = this%phi + 2*pi0
+    if (this%theta < 0.0d0) this%theta = this%theta + 2*pi0
+    if (this%psi < 0.0d0)   this%psi = this%psi + 2*pi0
+
+    
     this%w0           = freq * ev_to_au
     this%t0           = t0   * fs_to_au
     this%tau          = tau  * fs_to_au
@@ -410,12 +458,55 @@ subroutine init_plane_wave_src(this, input_ch, dim, dt, dr, grid_Ndims, mpi_coor
     z_min  = z_min * nm_to_au
     z_max  = z_max * nm_to_au
 
+    if (x_min < (1-int(grid_Ndims(1)*mpi_dims(1)/2))*dr .or. x_max > (int(grid_Ndims(1)*mpi_dims(1)/2))*dr) then
+        write (*, '("Error: the plane wave source extends beyond the simulation box in x direction &
+                & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(1)*mpi_dims(1)/2))*dr/nm_to_au, &
+                                                  (int(grid_Ndims(1)*mpi_dims(1)/2))*dr/nm_to_au
+        error stop
+    end if
+
+    if (dim > 1) then
+
+        if (y_min < (1-int(grid_Ndims(2)*mpi_dims(2)/2))*dr .or. y_max > (int(grid_Ndims(2)*mpi_dims(2)/2))*dr) then
+            write (*, '("Error: the plane wave source extends beyond the simulation box in y direction &
+                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(2)*mpi_dims(2)/2))*dr/nm_to_au, &
+                                                    (int(grid_Ndims(2)*mpi_dims(2)/2))*dr/nm_to_au
+            error stop
+        end if
+
+    end if
+
+    if (dim == 3) then
+
+        if (z_min < (1-int(grid_Ndims(3)*mpi_dims(3)/2))*dr .or. z_max > (int(grid_Ndims(3)*mpi_dims(3)/2))*dr) then
+            write (*, '("Error: the plane wave source extends beyond the simulation box in z direction &
+                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(3)*mpi_dims(3)/2))*dr/nm_to_au, &
+                                                    (int(grid_Ndims(3)*mpi_dims(3)/2))*dr/nm_to_au
+            error stop
+        end if
+    end if
+
     i_min  = FLOOR(x_min/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
     i_max  = FLOOR(x_max/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
     j_min  = FLOOR(y_min/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
     j_max  = FLOOR(y_max/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
     k_min  = FLOOR(z_min/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
     k_max  = FLOOR(z_max/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
+
+    if (.not. this%limited_axis(1)) then
+        i_min = 1
+        i_max = grid_Ndims(1)*mpi_dims(1)
+    end if
+    
+    if (.not. this%limited_axis(2) .and. this%dim > 1) then
+        j_min = 1
+        j_max = grid_Ndims(2)*mpi_dims(2)
+    end if
+
+    if (.not. this%limited_axis(3) .and. this%dim == 3) then
+        k_min = 1
+        k_max = grid_Ndims(3)*mpi_dims(3)
+    end if
 
     this%i_min = i_min
     this%i_max = i_max
@@ -511,6 +602,33 @@ subroutine init_plane_wave_src(this, input_ch, dim, dt, dr, grid_Ndims, mpi_coor
     case (3)
         dr_1D = dr * SQRT( DCOS(this%theta)**4 + &
                            DSIN(this%theta)**4 * (DCOS(this%phi)**4 + DSIN(this%phi)**4) )
+
+        this%v_vec =  (/DCOS(this%phi)*DSIN(this%theta), &
+                       DSIN(this%phi)*DSIN(this%theta), &
+                       DCOS(this%theta)/)
+
+        this%A_vec = 0.0d0
+
+        if (this%phi >= 0.0d0 .and. this%phi <= pi0/2.0d0) then
+            this%A_vec(1) = (i_min - int(grid_Ndims(1)*mpi_dims(1)/2))*dr
+            this%A_vec(2) = (j_min - int(grid_Ndims(2)*mpi_dims(2)/2))*dr
+        else if (this%phi > pi0/2.0d0 .and. this%phi <= pi0) then
+            this%A_vec(1) = (i_min - int(grid_Ndims(1)*mpi_dims(1)/2))*dr
+            this%A_vec(2) = (j_max - int(grid_Ndims(2)*mpi_dims(2)/2))*dr
+        else if (this%phi > pi0 .and. this%phi <= 3.0d0*pi0/2.0d0) then
+            this%A_vec(1) = (i_max - int(grid_Ndims(1)*mpi_dims(1)/2))*dr
+            this%A_vec(2) = (j_max - int(grid_Ndims(2)*mpi_dims(2)/2))*dr
+        else if (this%phi > 3.0d0*pi0/2.0d0 .and. this%phi <= 2.0d0*pi0) then
+            this%A_vec(1) = (i_max - int(grid_Ndims(1)*mpi_dims(1)/2))*dr
+            this%A_vec(2) = (j_min - int(grid_Ndims(2)*mpi_dims(2)/2))*dr
+        end if
+
+        if (this%theta >= 0.0d0 .and. this%theta <= pi0/2.0d0) then
+            this%A_vec(3) = (k_min - int(grid_Ndims(3)*mpi_dims(3)/2))*dr
+        else if (this%theta > pi0/2.0d0 .and. this%theta <= pi0) then
+            this%A_vec(3) = (k_max - int(grid_Ndims(3)*mpi_dims(3)/2))*dr
+        end if
+
     end select 
 
     !Estimating the number of points of the auxiliary 1D grid. We consider two-times more points
