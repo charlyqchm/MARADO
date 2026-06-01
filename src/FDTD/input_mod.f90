@@ -28,7 +28,7 @@ module input_mod
     real(dp)           :: mxll_dr               = 1.0
     ! Time step in fs. It will be automatically reduced if it is larger than the stability limit for the Maxwell solver (dr/(2*c)).
     real(dp)           :: mxll_dt               = 10.0E10
-    ! Quantum time step in fs.
+    ! Quantum time step in atomic units.
     real(dp)           :: mxll_dt_q             = 0.01
     ! Printing time step for the detectors in fs.
     real(dp)           :: mxll_dt_det_print     = 0.0
