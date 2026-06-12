@@ -42,9 +42,9 @@ def inp_file(mxll_dimensions=None, mxll_boundaries=None, mxll_npml=None,
         if len(mxll_boundaries) == 1:
             inp_file.write("mxll_boundaries = \""+ mxll_boundaries[0] + "\"\n")
         elif len(mxll_boundaries) == 2:
-            inp_file.write("mxll_boundaries = \""+ mxll_boundaries[0] + "\" \"" + mxll_boundaries[1] + "\"\n")
+            inp_file.write("mxll_boundaries = \""+ mxll_boundaries[0] + "\", \"" + mxll_boundaries[1] + "\"\n")
         elif len(mxll_boundaries) == 3:
-            inp_file.write("mxll_boundaries = \""+ mxll_boundaries[0] + "\" \"" + mxll_boundaries[1] + "\" \"" + mxll_boundaries[2] + "\"   \n")
+            inp_file.write("mxll_boundaries = \""+ mxll_boundaries[0] + "\", \"" + mxll_boundaries[1] + "\", \"" + mxll_boundaries[2] + "\"\n")
 
     if mxll_npml is not None:
         inp_file.write("mxll_npml = "+str(int(mxll_npml))+"\n")
@@ -65,17 +65,17 @@ def inp_file(mxll_dimensions=None, mxll_boundaries=None, mxll_npml=None,
         if len(mpi_procs_per_axis) == 1:
             inp_file.write("mpi_procs_per_axis = "+str(int(mpi_procs_per_axis[0]))+"\n")
         elif len(mpi_procs_per_axis) == 2:
-            inp_file.write("mpi_procs_per_axis = "+str(int(mpi_procs_per_axis[0]))+" "+str(int(mpi_procs_per_axis[1]))+"\n")
+            inp_file.write("mpi_procs_per_axis = "+str(int(mpi_procs_per_axis[0]))+", "+str(int(mpi_procs_per_axis[1]))+"\n")
         elif len(mpi_procs_per_axis) == 3:
-            inp_file.write("mpi_procs_per_axis = "+str(int(mpi_procs_per_axis[0]))+" "+str(int(mpi_procs_per_axis[1]))+" "+str(int(mpi_procs_per_axis[2]))+"\n")
+            inp_file.write("mpi_procs_per_axis = "+str(int(mpi_procs_per_axis[0]))+", "+str(int(mpi_procs_per_axis[1]))+", "+str(int(mpi_procs_per_axis[2]))+"\n")
 
     if mxll_box_size is not None:
         if len(mxll_box_size) == 1:
             inp_file.write("mxll_box_size = "+str(float(mxll_box_size[0]))+"\n")
         elif len(mxll_box_size) == 2:
-            inp_file.write("mxll_box_size = "+str(float(mxll_box_size[0]))+"  "+str(float(mxll_box_size[1]))+"\n")
+            inp_file.write("mxll_box_size = "+str(float(mxll_box_size[0]))+", "+str(float(mxll_box_size[1]))+"\n")
         elif len(mxll_box_size) == 3:
-            inp_file.write("mxll_box_size = "+str(float(mxll_box_size[0]))+"  "+str(float(mxll_box_size[1]))+"  "+str(float(mxll_box_size[2]))+"\n")
+            inp_file.write("mxll_box_size = "+str(float(mxll_box_size[0]))+", "+str(float(mxll_box_size[1]))+", "+str(float(mxll_box_size[2]))+"\n")
 
     if mxll_total_time is not None:
         inp_file.write("mxll_total_time = "+str(float(mxll_total_time))+"\n")
@@ -148,7 +148,7 @@ def detectors_file(detector_type=None, detected_field=None,
 
 ########################################################################################################################################################################################################################
 
-def medium_file(file_number=1, medium_type="dielectric", relative_permitivity=2.0,
+def medium_file(file_number=1, medium_type="dielectric", relative_permitivity=1.0,
                       omega=None, gamma=None, material=None, coordinates=None, help=False):
     
     if help:
@@ -165,8 +165,32 @@ def medium_file(file_number=1, medium_type="dielectric", relative_permitivity=2.
             "coordinates          -> Array of 1,2 or 3 elements, with the x, y and z coordinates of every grid point with the medium.\n")
         return
 
-    n          = len(coordinates)
-    dimensions = len(coordinates[0])
+    if coordinates is None:
+        print("Error: coordinates must be specified.")
+        return
+
+    # Accept either a single coordinate vector (e.g. [x, y, z]) or
+    # a list/array of coordinate vectors (e.g. [[x1, y1, z1], [x2, y2, z2]]).
+    coord_array = np.asarray(coordinates)
+    coord_array = np.squeeze(coord_array)
+
+    if coord_array.ndim == 0:
+        # Single scalar coordinate.
+        coord_array = coord_array.reshape(1, 1)
+    elif coord_array.ndim == 1:
+        # Single point provided.
+        coord_array = coord_array.reshape(1, -1)
+    elif coord_array.ndim != 2:
+        print("Error: coordinates should be a 1D or 2D array-like object.")
+        return
+
+    # Accept transposed point arrays such as shape (dim, n_points).
+    if coord_array.ndim == 2:
+        if coord_array.shape[1] not in (1, 2, 3) and coord_array.shape[0] in (1, 2, 3):
+            coord_array = coord_array.T
+
+    n = coord_array.shape[0]
+    dimensions = coord_array.shape[1]
     print("Your medium occupies " + str(n) + " grid points in " + str(dimensions) + " dimensions.")
 
     if dimensions < 1 or dimensions > 3:
@@ -201,15 +225,15 @@ def medium_file(file_number=1, medium_type="dielectric", relative_permitivity=2.
 
     if dimensions == 1:
         for i in range(n):
-            medium_file.write(str(coordinates[i]) + "\n")
+            medium_file.write(str(coord_array[i][0]) + "\n")
 
     if dimensions == 2:
         for i in range(n):
-            medium_file.write(str(coordinates[i][0]) + " " + str(coordinates[i][1]) + "\n")
+            medium_file.write(str(coord_array[i][0]) + " " + str(coord_array[i][1]) + "\n")
 
     if dimensions == 3:
         for i in range(n):
-            medium_file.write(str(coordinates[i][0]) + " " + str(coordinates[i][1]) + " " + str(coordinates[i][2]) + "\n")
+            medium_file.write(str(coord_array[i][0]) + " " + str(coord_array[i][1]) + " " + str(coord_array[i][2]) + "\n")
 
     return
 

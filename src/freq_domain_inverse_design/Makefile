@@ -38,6 +38,7 @@ SRC+=target_source_mod.f90
 SRC+=rs_operations_subs_mod.f90
 SRC+=bicgstab_mod.f90
 SRC+=optimization_problem_mod.f90
+# SRC+=mma_mod.f90
 
 MAIN=ch_inv_design.f90
 OBJ=$(addprefix $(OBJ_DIR)/,$(SRC:.f90=.o))

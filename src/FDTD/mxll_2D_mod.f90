@@ -847,7 +847,7 @@ contains
 
             if (this%cpml_pos(4)) then
                 do i = 1, nx
-                    jj = 2*npml
+                    jj = n_sec*npml
                     do j = ny + 1 - npml, ny - 1
                         rotH = (this%Hz(i, j) - this%Hz(i, j-1)) / this%dr
                         this%psiy_Exy(i, jj) = this%be(jj-n_base) * this%psiy_Exy(i, jj) + &

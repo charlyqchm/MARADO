@@ -56,6 +56,16 @@ subroutine point_source_interactions(mxll, sources)
     
         do s=1, sources%n_p_src
             n_ker = sources%points(s)%n_ker
+
+            ! In 2D, allowed source polarizations depend on the selected mode.
+            if (mxll%mode == TEZ_2D_MODE .and. trim(sources%points(s)%polarization) == 'z') then
+                print *, "Error: z-polarized point source is not allowed in TEz 2D mode."
+                stop
+            else if (mxll%mode == TMZ_2D_MODE .and. trim(sources%points(s)%polarization) /= 'z') then
+                print *, "Error: only z-polarized point source is allowed in TMz 2D mode."
+                stop
+            end if
+
             select case (sources%points(s)%polarization)
             case ('x')
                 do i=-n_ker, n_ker
@@ -63,8 +73,12 @@ subroutine point_source_interactions(mxll, sources)
                     if (sources%points(s)%in_this_rank(i,j,1)) then
                         i_id = sources%points(s)%ind_i(i,j,1)
                         j_id = sources%points(s)%ind_j(i,j,1)
-                        J_av = 0.5d0*(sources%points(s)%J_mat(i,j,1) + &
+                        if (i==n_ker) then
+                            J_av = 0.5d0*sources%points(s)%J_mat(i,j,1)
+                        else
+                            J_av = 0.5d0*(sources%points(s)%J_mat(i,j,1) + &
                                         sources%points(s)%J_mat(i+1,j,1))
+                        end if
                         mxll%Ex(i_id,j_id) = mxll%Ex(i_id,j_id) + c_src * J_av
                     end if
                 end do
@@ -75,8 +89,12 @@ subroutine point_source_interactions(mxll, sources)
                     if (sources%points(s)%in_this_rank(i,j,1)) then
                         i_id = sources%points(s)%ind_i(i,j,1)
                         j_id = sources%points(s)%ind_j(i,j,1)
-                        J_av = 0.5d0*(sources%points(s)%J_mat(i,j,1) + &
+                        if (j==n_ker) then
+                            J_av = 0.5d0*sources%points(s)%J_mat(i,j,1)
+                        else
+                            J_av = 0.5d0*(sources%points(s)%J_mat(i,j,1) + &
                                         sources%points(s)%J_mat(i,j+1,1))
+                        end if
                         mxll%Ey(i_id,j_id) = mxll%Ey(i_id,j_id) + c_src * J_av
                     end if
                 end do
@@ -111,8 +129,12 @@ subroutine point_source_interactions(mxll, sources)
                         i_id = sources%points(s)%ind_i(i,j,k)
                         j_id = sources%points(s)%ind_j(i,j,k)
                         k_id = sources%points(s)%ind_k(i,j,k)
-                        J_av = 0.5d0*(sources%points(s)%J_mat(i,j,k) + &
+                        if (i==n_ker) then
+                            J_av = 0.5d0*sources%points(s)%J_mat(i,j,k)
+                        else
+                            J_av = 0.5d0*(sources%points(s)%J_mat(i,j,k) + &
                                         sources%points(s)%J_mat(i+1,j,k))
+                        end if
                         mxll%Ex(i_id,j_id,k_id) = mxll%Ex(i_id,j_id,k_id) + c_src * J_av
                     end if
                 end do
@@ -126,8 +148,12 @@ subroutine point_source_interactions(mxll, sources)
                         i_id = sources%points(s)%ind_i(i,j,k)
                         j_id = sources%points(s)%ind_j(i,j,k)
                         k_id = sources%points(s)%ind_k(i,j,k)
-                        J_av = 0.5d0*(sources%points(s)%J_mat(i,j,k) + &
+                        if (j==n_ker) then
+                            J_av = 0.5d0*sources%points(s)%J_mat(i,j,k)
+                        else
+                            J_av = 0.5d0*(sources%points(s)%J_mat(i,j,k) + &
                                         sources%points(s)%J_mat(i,j+1,k))
+                        end if
                         mxll%Ey(i_id,j_id,k_id) = mxll%Ey(i_id,j_id,k_id) + c_src * J_av
                     end if
                 end do
@@ -141,8 +167,12 @@ subroutine point_source_interactions(mxll, sources)
                         i_id = sources%points(s)%ind_i(i,j,k)
                         j_id = sources%points(s)%ind_j(i,j,k)
                         k_id = sources%points(s)%ind_k(i,j,k)
-                        J_av = 0.5d0*(sources%points(s)%J_mat(i,j,k) + &
+                        if (k==n_ker) then
+                            J_av = 0.5d0*sources%points(s)%J_mat(i,j,k)
+                        else
+                            J_av = 0.5d0*(sources%points(s)%J_mat(i,j,k) + &
                                         sources%points(s)%J_mat(i,j,k+1))
+                        end if
                         mxll%Ez(i_id,j_id,k_id) = mxll%Ez(i_id,j_id,k_id) + c_src * J_av
                     end if
                 end do
@@ -821,7 +851,7 @@ subroutine plane_waves_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
         end do
 
     end select
-
+    
 end subroutine plane_waves_E_interactions
 !###################################################################################################
 
@@ -1527,7 +1557,1838 @@ subroutine plane_waves_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
 
 end subroutine plane_waves_H_interactions
 
-!###################################################################################################    
+!###################################################################################################
+
+subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
+    class(TMxll)       ,intent(inout) :: mxll
+    type(TSources_list),intent(inout) :: sources
+    integer            , intent(in)   :: mpi_coords(3)
+    integer            , intent(in)   :: mpi_dims(3)
+    real(dp)           , intent(in)   :: time
+
+    complex(dp) :: E_rz
+    integer  :: s
+    integer  :: i_min, j_min, k_min
+    integer  :: i_max, j_max, k_max
+    integer  :: i, j ,k
+    integer  :: i0, j0, k0
+    integer  :: i_min_loc, j_min_loc, k_min_loc
+    integer  :: i_max_loc, j_max_loc, k_max_loc
+    integer  :: nx, ny, nz
+    integer  :: d_int
+    integer  :: m0 = 10
+    real(dp) :: E0
+    real(dp) :: dt_eps
+    real(dp) :: sin_psi
+    real(dp) :: cos_psi
+    real(dp) :: cos_phi
+    real(dp) :: sin_phi
+    real(dp) :: z
+    real(dp) :: r_mod
+    real(dp) :: r_vec(3) = 0.0_dp
+    real(dp) :: d, d_p, d_pp
+    real(dp) :: dx_aux
+    real(dp) :: dr_main
+    real(dp) :: A_vec(3)
+    real(dp) :: P_vec(3)
+    real(dp) :: r0_vec(3)
+    real(dp) :: v_vec(3)
+    real(dp) :: w_vec(3)
+    real(dp) :: uz_vec(3) = (/0.0d0, 0.0d0, 1.0d0/)
+    real(dp) :: v1_vec(3) = 0.0d0
+    real(dp) :: v3_vec(3) = 0.0d0
+    real(dp) :: E_vec(3)
+    real(dp) :: E_t_Re
+    real(dp) :: E_t_Im
+    real(dp) :: E_inc
+    real(dp) :: Ex_inc, Ey_inc, Ez_inc
+    real(dp) :: dt_mu
+
+    select type(mxll)
+    class is(TMxll_1D)
+    class is(TMxll_2D)
+
+        nx       = mxll%nx
+        ny       = mxll%ny
+        dt_mu    = mxll%dt/mu0/mxll%dr
+        dr_main  = mxll%dr
+        
+        do s=1, sources%n_gb_src
+            
+            r0_vec  = sources%gauss_beams(s)%r0
+            i_min   = sources%gauss_beams(s)%i_min
+            i_max   = sources%gauss_beams(s)%i_max
+            j_min   = sources%gauss_beams(s)%j_min
+            j_max   = sources%gauss_beams(s)%j_max
+
+            P_vec    = 0.0d0
+            w_vec    = 0.0d0
+            v_vec    = sources%gauss_beams(s)%v_vec
+            A_vec    = sources%gauss_beams(s)%A_vec
+            dx_aux   = sources%gauss_beams(s)%mxll_inc_Re%dr
+            
+            cos_psi  = DCOS(sources%gauss_beams(s)%psi)
+            sin_psi  = DSIN(sources%gauss_beams(s)%psi)
+            cos_phi  = DCOS(sources%gauss_beams(s)%phi - pi0/2)
+            sin_phi  = DSIN(sources%gauss_beams(s)%phi - pi0/2)
+
+            if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+                if (mxll%mode == TMZ_2D_MODE) sin_psi = 1.0d0
+
+                if (sources%gauss_beams(s)%i_min_in_this_rank) then
+
+                    i_min_loc = sources%gauss_beams(s)%i_min_loc
+
+                    P_vec(1) = (i_min - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod       = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+
+                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+
+                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+
+                            E_rz = sources%gauss_beams(s)%E_rz
+
+                            Ez_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                            mxll%Hy(i_min_loc-1,j) = mxll%Hy(i_min_loc-1,j) - &
+                                                     dt_mu * sin_psi * Ez_inc
+                    
+                        end if
+                    end do
+                end if
+
+                if (sources%gauss_beams(s)%i_max_in_this_rank) then
+
+                    i_max_loc = sources%gauss_beams(s)%i_max_loc
+
+                    P_vec(1) = (i_max - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod       = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+                            
+                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+
+                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            E_rz = sources%gauss_beams(s)%E_rz
+
+                            Ez_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                            mxll%Hy(i_max_loc,j) = mxll%Hy(i_max_loc, j) + &
+                                                   dt_mu * sin_psi * Ez_inc
+                    
+                        end if
+                    end do
+
+                end if
+
+                if (sources%gauss_beams(s)%j_min_in_this_rank) then
+
+                    j_min_loc = sources%gauss_beams(s)%j_min_loc
+
+                    P_vec(2) = (j_min - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+
+                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+
+                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            E_rz = sources%gauss_beams(s)%E_rz
+
+                            Ez_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                            mxll%Hx(i,j_min_loc-1) = mxll%Hx(i,j_min_loc-1) + &
+                                                     dt_mu * sin_psi * Ez_inc
+                        end if
+                    end do
+
+                end if
+
+                if (sources%gauss_beams(s)%j_max_in_this_rank) then
+
+                    j_max_loc = sources%gauss_beams(s)%j_max_loc
+
+                    P_vec(2) = (j_max - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+
+                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+
+                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            E_rz = sources%gauss_beams(s)%E_rz
+
+                            Ez_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                            mxll%Hx(i,j_max_loc) = mxll%Hx(i,j_max_loc) - &
+                                                     dt_mu * sin_psi * Ez_inc
+                        end if
+                    end do
+
+                end if
+                
+            end if
+
+            if (mxll%mode == TEZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+                if (mxll%mode == TEZ_2D_MODE) cos_psi = 1.0d0
+
+                if (sources%gauss_beams(s)%i_min_in_this_rank) then
+
+                    i_min_loc = sources%gauss_beams(s)%i_min_loc
+
+                    P_vec(1) = (i_min - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max-1 .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+
+                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+
+                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            E_rz = sources%gauss_beams(s)%E_rz
+
+                            Ey_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                            mxll%Hz(i_min_loc-1,j) = mxll%Hz(i_min_loc-1,j) + &
+                                                     dt_mu * sin_phi * cos_psi * Ey_inc
+
+                        end if
+                    end do
+                end if
+
+                if (sources%gauss_beams(s)%i_max_in_this_rank) then
+
+                    i_max_loc = sources%gauss_beams(s)%i_max_loc
+
+                    P_vec(1) = (i_max - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max-1 .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+
+                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+
+                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            E_rz = sources%gauss_beams(s)%E_rz
+                            Ey_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                            mxll%Hz(i_max_loc,j) = mxll%Hz(i_max_loc,j) - &
+                                                    dt_mu * sin_phi * cos_psi * Ey_inc
+                        end if
+                    end do
+                end if
+
+                if (sources%gauss_beams(s)%j_min_in_this_rank) then
+
+                    j_min_loc = sources%gauss_beams(s)%j_min_loc
+
+                    P_vec(2) = (j_min - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max-1 .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+
+                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+
+                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            E_rz = sources%gauss_beams(s)%E_rz
+                            Ex_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        
+                            mxll%Hz(i,j_min_loc-1) = mxll%Hz(i,j_min_loc-1) - &
+                                                     dt_mu * cos_phi * cos_psi * Ex_inc
+                        end if
+                    end do
+
+                end if
+
+                if (sources%gauss_beams(s)%j_max_in_this_rank) then
+                    j_max_loc = sources%gauss_beams(s)%j_max_loc
+
+                    P_vec(2) = (j_max - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max-1 .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_int      = FLOOR(d/dx_aux)
+                            d_p        = (d - d_int*dx_aux)/dx_aux
+
+                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+
+                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            E_rz = sources%gauss_beams(s)%E_rz
+
+                            Ex_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                            mxll%Hz(i,j_max_loc) = mxll%Hz(i,j_max_loc) + &
+                                                     dt_mu * cos_phi * cos_psi * Ex_inc
+                        end if
+                    end do
+                end if
+
+            end if
+
+        end do
+    class is(TMxll_3D)
+    
+        nx     = mxll%nx
+        ny     = mxll%ny
+        nz     = mxll%nz
+        dt_mu  = mxll%dt/mu0/mxll%dr
+        dr_main = mxll%dr
+    
+        do s=1, sources%n_gb_src
+
+            r0_vec  = sources%gauss_beams(s)%r0
+            i_min   = sources%gauss_beams(s)%i_min
+            i_max   = sources%gauss_beams(s)%i_max
+            j_min   = sources%gauss_beams(s)%j_min
+            j_max   = sources%gauss_beams(s)%j_max
+            k_min   = sources%gauss_beams(s)%k_min
+            k_max   = sources%gauss_beams(s)%k_max
+
+            P_vec    = 0.0d0
+            w_vec    = 0.0d0
+            A_vec    = sources%gauss_beams(s)%A_vec
+            v_vec    = sources%gauss_beams(s)%v_vec
+            dx_aux   = sources%gauss_beams(s)%mxll_inc_Re%dr
+
+            v1_vec   = CROSS_PRODUCT(v_vec, uz_vec)
+            v3_vec   = CROSS_PRODUCT(v1_vec, v_vec)
+
+            cos_psi  = DCOS(sources%gauss_beams(s)%psi)
+            sin_psi  = DSIN(sources%gauss_beams(s)%psi)
+
+            if (sources%gauss_beams(s)%i_min_in_this_rank) then
+
+                i_min_loc = sources%gauss_beams(s)%i_min_loc
+
+                P_vec(1) = (i_min - INT(mpi_dims(1)*nx/2))*dr_main
+
+                j0 = ny*mpi_coords(2)
+                k0 = nz*mpi_coords(3)
+
+                do k = 1, nz
+                do j = 1, ny
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max-1 .and. k0+k <= k_max)) then
+
+                        P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                        P_vec(3)   = (k0 + k - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_int      = FLOOR(d/dx_aux)
+                        d_p        = (d - d_int*dx_aux)/dx_aux
+
+                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+
+                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        E_rz = sources%gauss_beams(s)%E_rz
+                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                        E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Ey_inc = E_vec(2)
+                        mxll%Hz(i_min_loc-1,j,k) = mxll%Hz(i_min_loc-1,j,k) + dt_mu * Ey_inc
+
+                    end if
+                        
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max .and. k0+k <= k_max-1)) then
+                        
+                        P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                        P_vec(3)   = (k0 + k + 0.5d0- INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_int      = FLOOR(d/dx_aux)
+                        d_p        = (d - d_int*dx_aux)/dx_aux
+
+                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+
+                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        E_rz = sources%gauss_beams(s)%E_rz
+                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        
+                        E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Ez_inc = E_vec(3)
+                        mxll%Hy(i_min_loc-1,j,k) = mxll%Hy(i_min_loc-1,j,k) - dt_mu * Ez_inc
+
+                    end if 
+                end do
+                end do
+
+            end if
+
+            if (sources%gauss_beams(s)%i_max_in_this_rank) then
+
+                i_max_loc = sources%gauss_beams(s)%i_max_loc
+                P_vec(1) = (i_max - INT(mpi_dims(1)*nx/2))*dr_main
+
+                j0 = ny*mpi_coords(2)
+                k0 = nz*mpi_coords(3)
+
+                do k = 1, nz
+                do j = 1, ny
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max-1 .and. k0+k <= k_max)) then
+
+                        P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                        P_vec(3)   = (k0 + k - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_int      = FLOOR(d/dx_aux)
+                        d_p        = (d - d_int*dx_aux)/dx_aux
+
+                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+
+                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+
+                        E_rz = sources%gauss_beams(s)%E_rz
+                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                        E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Ey_inc = E_vec(2)
+                        mxll%Hz(i_max_loc,j,k) = mxll%Hz(i_max_loc,j,k) - dt_mu * Ey_inc
+
+                    end if
+                        
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max .and. k0+k <= k_max-1)) then
+                        
+                        P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                        P_vec(3)   = (k0 + k + 0.5d0- INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_int      = FLOOR(d/dx_aux)
+                        d_p        = (d - d_int*dx_aux)/dx_aux
+    
+                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+
+                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        E_rz = sources%gauss_beams(s)%E_rz
+                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                        E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Ez_inc = E_vec(3)
+                        mxll%Hy(i_max_loc,j,k) = mxll%Hy(i_max_loc,j,k) + dt_mu * Ez_inc
+
+                    end if
+
+                end do
+                end do
+
+            end if
+
+            if (sources%plane_waves(s)%j_min_in_this_rank) then
+
+                j_min_loc = sources%plane_waves(s)%j_min_loc
+                P_vec(2) = (j_min - INT(mpi_dims(2)*ny/2))*dr_main
+
+                i0 = nx*mpi_coords(1)
+                k0 = nz*mpi_coords(3)
+
+                do k = 1, nz
+                do i = 1, nx
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max-1 .and. k0+k <= k_max)) then
+
+                        P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(3)   = (k0 + k - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_int      = FLOOR(d/dx_aux)
+                        d_p        = (d - d_int*dx_aux)/dx_aux
+
+                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+
+                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        E_rz = sources%gauss_beams(s)%E_rz
+                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                        E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Ex_inc = E_vec(1)
+                        mxll%Hz(i,j_min_loc-1,k) = mxll%Hz(i,j_min_loc-1,k) - dt_mu * Ex_inc
+
+                    end if
+                        
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max .and. k0+k <= k_max-1)) then
+                        
+                        P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(3)   = (k0 + k + 0.5d0 - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_int      = FLOOR(d/dx_aux)
+                        d_p        = (d - d_int*dx_aux)/dx_aux
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        E_rz = sources%gauss_beams(s)%E_rz
+                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                        E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Ez_inc = E_vec(3)
+                        mxll%Hx(i,j_min_loc-1,k) = mxll%Hx(i,j_min_loc-1,k) + dt_mu * Ez_inc
+
+                    end if
+
+                end do
+                end do
+
+            end if
+
+            if (sources%gauss_beams(s)%j_max_in_this_rank) then
+
+                j_max_loc = sources%gauss_beams(s)%j_max_loc
+                P_vec(2) = (j_max - INT(mpi_dims(2)*ny/2))*dr_main
+
+                i0 = nx*mpi_coords(1)
+                k0 = nz*mpi_coords(3)
+
+                do k = 1, nz
+                do i = 1, nx
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max-1 .and. k0+k <= k_max)) then
+
+                        P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(3)   = (k0 + k - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_int      = FLOOR(d/dx_aux)
+                        d_p        = (d - d_int*dx_aux)/dx_aux
+
+                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+                        
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        E_rz = sources%gauss_beams(s)%E_rz
+                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                        E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Ex_inc = E_vec(1)
+                        mxll%Hz(i,j_max_loc,k) = mxll%Hz(i,j_max_loc,k) + dt_mu * Ex_inc
+
+                    end if
+                        
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max .and. k0+k <= k_max-1)) then
+                        
+                        P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(3)   = (k0 + k + 0.5d0 - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_int      = FLOOR(d/dx_aux)
+                        d_p        = (d - d_int*dx_aux)/dx_aux
+
+                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        E_rz = sources%gauss_beams(s)%E_rz
+                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                        E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Ez_inc = E_vec(3)
+                        mxll%Hx(i,j_max_loc,k) = mxll%Hx(i,j_max_loc,k) - dt_mu * Ez_inc
+
+                    end if
+
+                end do
+                end do
+            end if
+
+            if (sources%gauss_beams(s)%k_min_in_this_rank) then
+
+                k_min_loc = sources%gauss_beams(s)%k_min_loc
+                P_vec(3) = (k_min - INT(mpi_dims(3)*nz/2))*dr_main
+
+                i0 = nx*mpi_coords(1)
+                j0 = ny*mpi_coords(2)
+
+                do j = 1, ny
+                do i = 1, nx
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max-1 .and. j0+j <= j_max)) then
+
+                        P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_int      = FLOOR(d/dx_aux)
+                        d_p        = (d - d_int*dx_aux)/dx_aux
+
+                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        E_rz = sources%gauss_beams(s)%E_rz
+                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                        E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Ex_inc = E_vec(1)
+
+                        mxll%Hy(i,j,k_min_loc-1) = mxll%Hy(i,j,k_min_loc-1) + dt_mu * Ex_inc
+
+                    end if
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max .and. j0+j <= j_max-1)) then
+
+                        P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_int      = FLOOR(d/dx_aux)
+                        d_p        = (d - d_int*dx_aux)/dx_aux
+
+                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                    d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                    d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        E_rz = sources%gauss_beams(s)%E_rz
+                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                        E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Ey_inc = E_vec(2)
+
+                        mxll%Hx(i,j,k_min_loc-1) = mxll%Hx(i,j,k_min_loc-1) - dt_mu * Ey_inc
+
+                    end if
+
+                end do
+                end do
+
+            end if
+
+            if (sources%gauss_beams(s)%k_max_in_this_rank) then
+
+                k_max_loc = sources%gauss_beams(s)%k_max_loc
+                P_vec(3) = (k_max - INT(mpi_dims(3)*nz/2))*dr_main
+
+                i0 = nx*mpi_coords(1)
+                j0 = ny*mpi_coords(2)
+
+                do j = 1, ny
+                do i = 1, nx
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max-1 .and. j0+j <= j_max)) then
+
+                        P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_int      = FLOOR(d/dx_aux)
+                        d_p        = (d - d_int*dx_aux)/dx_aux
+
+                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        E_rz = sources%gauss_beams(s)%E_rz
+                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                        E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Ex_inc = E_vec(1)
+
+                        mxll%Hy(i,j,k_max_loc) = mxll%Hy(i,j,k_max_loc) - dt_mu * Ex_inc
+
+                    end if
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max .and. j0+j <= j_max-1)) then
+
+                        P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_int      = FLOOR(d/dx_aux)
+                        d_p        = (d - d_int*dx_aux)/dx_aux
+
+                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        E_rz = sources%gauss_beams(s)%E_rz
+                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+
+                        E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Ey_inc = E_vec(2)
+
+                        mxll%Hx(i,j,k_max_loc) = mxll%Hx(i,j,k_max_loc) + dt_mu * Ey_inc
+
+                    end if
+
+                end do
+                end do
+
+            end if
+
+        end do
+
+    end select
+
+end subroutine gaussbeam_E_interactions
+
+!###################################################################################################
+
+subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
+    class(TMxll)       ,intent(inout) :: mxll
+    type(TSources_list),intent(inout) :: sources
+    integer            , intent(in)   :: mpi_coords(3)
+    integer            , intent(in)   :: mpi_dims(3)
+    real(dp)           , intent(in)   :: time
+
+    complex(dp) :: H_rz
+    integer  :: s
+    integer  :: i_min, j_min, k_min
+    integer  :: i_max, j_max, k_max
+    integer  :: i, j ,k
+    integer  :: i0, j0, k0
+    integer  :: i_min_loc, j_min_loc, k_min_loc
+    integer  :: i_max_loc, j_max_loc, k_max_loc
+    integer  :: nx, ny, nz
+    integer  :: m0 = 10
+    integer  :: d_int
+    real(dp) :: dx_aux
+    real(dp) :: sin_psi
+    real(dp) :: cos_psi
+    real(dp) :: cos_phi
+    real(dp) :: sin_phi
+    real(dp) :: z
+    real(dp) :: d, d_p, d_pp
+    real(dp) :: r_mod
+    real(dp) :: r_vec(3) = 0.0_dp
+    real(dp) :: dr_main
+    real(dp) :: r0_vec(3)
+    real(dp) :: A_vec(3)
+    real(dp) :: P_vec(3)
+    real(dp) :: v_vec(3)
+    real(dp) :: w_vec(3)
+    real(dp) :: uz_vec(3) = (/0.0d0, 0.0d0, 1.0d0/)
+    real(dp) :: v1_vec(3) = 0.0d0
+    real(dp) :: v3_vec(3) = 0.0d0
+    real(dp) :: H_vec(3)
+    real(dp) :: H_inc
+    real(dp) :: H_t_Re, H_t_Im
+    real(dp) :: Hx_inc, Hy_inc, Hz_inc
+    real(dp) :: dt_eps
+
+    select type(mxll)
+    class is(TMxll_1D)
+    class is(TMxll_2D)
+
+        nx       = mxll%nx
+        ny       = mxll%ny
+        dt_eps   = mxll%dt/eps0/mxll%dr
+        dr_main  = mxll%dr
+
+        do s = 1, sources%n_gb_src
+            r0_vec  = sources%gauss_beams(s)%r0
+            i_min   = sources%gauss_beams(s)%i_min
+            i_max   = sources%gauss_beams(s)%i_max
+            j_min   = sources%gauss_beams(s)%j_min
+            j_max   = sources%gauss_beams(s)%j_max
+
+            P_vec    = 0.0d0
+            w_vec    = 0.0d0
+            A_vec    = sources%gauss_beams(s)%A_vec
+            v_vec    = sources%gauss_beams(s)%v_vec
+            dx_aux   = sources%gauss_beams(s)%mxll_inc_Re%dr
+            
+            cos_psi  = DCOS(sources%gauss_beams(s)%psi - pi0/2)
+            sin_psi  = DSIN(sources%gauss_beams(s)%psi - pi0/2)
+            cos_phi  = DCOS(sources%gauss_beams(s)%phi - pi0/2)
+            sin_phi  = DSIN(sources%gauss_beams(s)%phi - pi0/2)
+
+            if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+                if (mxll%mode == TMZ_2D_MODE) cos_psi = 1.0d0
+
+                if (sources%gauss_beams(s)%i_min_in_this_rank) then
+
+                    i_min_loc = sources%gauss_beams(s)%i_min_loc
+
+                    P_vec(1) = (i_min - 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            H_rz = sources%gauss_beams(s)%E_rz
+
+                            Hy_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                            mxll%Ez(i_min_loc, j) = mxll%Ez(i_min_loc, j) - &
+                                                     dt_eps * sin_phi * cos_psi * Hy_inc
+
+                        end if
+                    end do
+
+                end if
+
+                if (sources%gauss_beams(s)%i_max_in_this_rank) then
+
+                    i_max_loc = sources%gauss_beams(s)%i_max_loc
+
+                    P_vec(1) = (i_max + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+                            
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            H_rz = sources%gauss_beams(s)%E_rz
+
+                            Hy_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                            mxll%Ez(i_max_loc, j) = mxll%Ez(i_max_loc, j) + &
+                                                       dt_eps * sin_phi * cos_psi * Hy_inc
+                                      
+                        end if
+                    end do
+
+                end if
+
+                if (sources%gauss_beams(s)%j_min_in_this_rank) then
+
+                    j_min_loc = sources%gauss_beams(s)%j_min_loc
+
+                    P_vec(2) = (j_min - 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z         = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            H_rz = sources%gauss_beams(s)%E_rz
+
+                            Hx_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                            mxll%Ez(i,j_min_loc) = mxll%Ez(i,j_min_loc) + &
+                                                     dt_eps * cos_phi * cos_psi * Hx_inc
+                        end if
+                    end do
+
+                end if
+
+                if (sources%gauss_beams(s)%j_max_in_this_rank) then
+                    j_max_loc = sources%gauss_beams(s)%j_max_loc
+
+                    P_vec(2) = (j_max + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z         = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            H_rz = sources%gauss_beams(s)%E_rz
+
+                            Hx_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                            mxll%Ez(i,j_max_loc) = mxll%Ez(i,j_max_loc) - &
+                                                     dt_eps * cos_phi * cos_psi * Hx_inc
+                        end if
+                    end do
+
+                end if
+
+            end if
+
+            if (mxll%mode == TEZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+                if (mxll%mode == TEZ_2D_MODE) sin_psi = -1.0d0
+
+                if (sources%gauss_beams(s)%i_min_in_this_rank) then
+
+                    i_min_loc = sources%gauss_beams(s)%i_min_loc
+
+                    P_vec(1) = (i_min - 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                    
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max-1 .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            H_rz = sources%gauss_beams(s)%E_rz
+
+                            Hz_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                            mxll%Ey(i_min_loc, j) = mxll%Ey(i_min_loc, j) + &
+                                                    dt_eps * sin_psi * Hz_inc
+                            
+                        end if
+                    end do
+                end if
+    
+                if (sources%gauss_beams(s)%i_max_in_this_rank) then
+
+                    i_max_loc = sources%gauss_beams(s)%i_max_loc
+
+                    P_vec(1) = (i_max + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+
+                    j0 = ny*mpi_coords(2)
+
+                    do j = 1, ny 
+                        if (j0+j <= j_max-1 .and. j0+j >= j_min) then
+
+                            P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            H_rz = sources%gauss_beams(s)%E_rz
+
+                            Hz_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                            mxll%Ey(i_max_loc, j) = mxll%Ey(i_max_loc, j) - &
+                                                    dt_eps * sin_psi * Hz_inc
+                            
+                        end if
+                    end do
+                end if
+    
+                if (sources%gauss_beams(s)%j_min_in_this_rank) then
+
+                    j_min_loc = sources%gauss_beams(s)%j_min_loc
+
+                    P_vec(2) = (j_min - 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max-1 .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            H_rz = sources%gauss_beams(s)%E_rz
+                            Hz_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                            mxll%Ex(i,j_min_loc) = mxll%Ex(i,j_min_loc) - &
+                                                    dt_eps * sin_psi * Hz_inc
+                        end if
+                    end do
+                end if
+
+                if (sources%gauss_beams(s)%j_max_in_this_rank) then
+                    j_max_loc = sources%gauss_beams(s)%j_max_loc
+
+                    P_vec(2) = (j_max + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                    
+                    i0 = nx*mpi_coords(1)
+
+                    do i = 1, nx 
+                        if (i0+i <= i_max-1 .and. i0+i >= i_min) then
+
+                            P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                            w_vec(1:2) = P_vec(1:2) - r0_vec(1:2)  
+                            z          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
+                            r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
+
+                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
+                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
+                            d_pp       = d + 0.5d0*dx_aux
+                            d_int      = FLOOR(d_pp/dx_aux)
+                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                            H_rz = sources%gauss_beams(s)%E_rz
+                            Hz_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                            mxll%Ex(i,j_max_loc) = mxll%Ex(i,j_max_loc) + &
+                                                    dt_eps * sin_psi * Hz_inc
+                        end if
+                    end do
+                end if
+
+            end if
+
+        end do
+
+    class is(TMxll_3D)
+
+        nx      = mxll%nx
+        ny      = mxll%ny
+        nz      = mxll%nz
+        dt_eps  = mxll%dt/eps0/mxll%dr
+        dr_main = mxll%dr
+    
+        do s=1, sources%n_gb_src
+
+            r0_vec  = sources%gauss_beams(s)%r0
+            i_min   = sources%gauss_beams(s)%i_min
+            i_max   = sources%gauss_beams(s)%i_max
+            j_min   = sources%gauss_beams(s)%j_min
+            j_max   = sources%gauss_beams(s)%j_max
+            k_min   = sources%gauss_beams(s)%k_min
+            k_max   = sources%gauss_beams(s)%k_max
+
+            P_vec    = 0.0d0
+            w_vec    = 0.0d0
+            A_vec    = sources%gauss_beams(s)%A_vec
+            v_vec    = sources%gauss_beams(s)%v_vec
+            dx_aux   = sources%gauss_beams(s)%mxll_inc_Re%dr
+
+            v1_vec   = CROSS_PRODUCT(v_vec, uz_vec)
+            v3_vec   = CROSS_PRODUCT(v1_vec, v_vec)
+
+            cos_psi  = DCOS(sources%gauss_beams(s)%psi-pi0/2)
+            sin_psi  = DSIN(sources%gauss_beams(s)%psi-pi0/2)
+
+            if (sources%gauss_beams(s)%i_min_in_this_rank) then
+
+                i_min_loc = sources%gauss_beams(s)%i_min_loc
+
+                P_vec(1) = (i_min - 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                
+                j0 = ny*mpi_coords(2)
+                k0 = nz*mpi_coords(3)
+
+                i_min_loc = sources%gauss_beams(s)%i_min_loc
+
+                P_vec(1) = (i_min - 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                
+                j0 = ny*mpi_coords(2)
+                k0 = nz*mpi_coords(3)
+
+                do k = 1, nz
+                do j = 1, ny 
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max-1 .and. k0+k <= k_max)) then
+
+                        P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                        P_vec(3)   = (k0 + k - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_pp       = d + 0.5d0*dx_aux
+                        d_int      = FLOOR(d_pp/dx_aux)
+                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        H_rz = sources%gauss_beams(s)%E_rz
+
+                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                        H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Hz_inc = H_vec(3)
+
+                        mxll%Ey(i_min_loc, j, k) = mxll%Ez(i_min_loc, j, k) + dt_eps * Hz_inc
+
+                    end if
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max .and. k0+k <= k_max-1)) then
+                        
+                        P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                        P_vec(3)   = (k0 + k + 0.5d0 - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_pp       = d + 0.5d0*dx_aux
+                        d_int      = FLOOR(d_pp/dx_aux)
+                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        H_rz = sources%gauss_beams(s)%E_rz
+
+                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                        H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Hy_inc = H_vec(2)
+
+                        mxll%Ex(i_min_loc, j, k) = mxll%Ex(i_min_loc, j, k) - dt_eps * Hy_inc
+                    
+                    end if
+
+                end do
+                end do
+
+            end if
+
+            if (sources%gauss_beams(s)%i_max_in_this_rank) then
+
+                i_max_loc = sources%gauss_beams(s)%i_max_loc
+
+                P_vec(1) = (i_max + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                
+                j0 = ny*mpi_coords(2)
+                k0 = nz*mpi_coords(3)
+
+                do k = 1, nz
+                do j = 1, ny 
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max-1 .and. k0+k <= k_max)) then
+
+                        P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                        P_vec(3)   = (k0 + k - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_pp       = d + 0.5d0*dx_aux
+                        d_int      = FLOOR(d_pp/dx_aux)
+                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        H_rz = sources%gauss_beams(s)%E_rz
+
+                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                        H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Hz_inc = H_vec(3)
+
+                        mxll%Ey(i_max_loc, j, k) = mxll%Ey(i_max_loc, j, k) - dt_eps * Hz_inc
+
+                    end if
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max .and. k0+k <= k_max-1)) then
+                        
+                        P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                        P_vec(3)   = (k0 + k + 0.5d0 - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_pp       = d + 0.5d0*dx_aux
+                        d_int      = FLOOR(d_pp/dx_aux)
+                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        H_rz = sources%gauss_beams(s)%E_rz
+
+                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                        H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Hy_inc = H_vec(2)
+
+                        mxll%Ez(i_max_loc, j, k) = mxll%Ez(i_max_loc, j, k) + dt_eps * Hy_inc
+                    end if
+
+                end do
+                end do
+            
+            end if
+
+            if (sources%gauss_beams(s)%j_min_in_this_rank) then
+
+                j_min_loc = sources%gauss_beams(s)%j_min_loc
+
+                P_vec(2) = (j_min - 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                
+                i0 = nx*mpi_coords(1)
+                k0 = nz*mpi_coords(3)
+
+                do k = 1, nz
+                do i = 1, nx 
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max-1 .and. k0+k <= k_max)) then
+
+                        P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(3)   = (k0 + k - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_pp       = d + 0.5d0*dx_aux
+                        d_int      = FLOOR(d_pp/dx_aux)
+                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        H_rz = sources%gauss_beams(s)%E_rz
+
+                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                        H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Hz_inc = H_vec(3)
+
+                        mxll%Ex(i, j_min_loc, k) = mxll%Ex(i, j_min_loc, k) - dt_eps * Hz_inc
+                        
+                    end if  
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max .and. k0+k <= k_max-1)) then
+                        
+                        P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(3)   = (k0 + k + 0.5d0 - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_pp       = d + 0.5d0*dx_aux
+                        d_int      = FLOOR(d_pp/dx_aux)
+                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        H_rz = sources%gauss_beams(s)%E_rz
+
+                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                        H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Hx_inc = H_vec(1)
+
+                        mxll%Ez(i, j_min_loc, k) = mxll%Ez(i, j_min_loc, k) + dt_eps * Hx_inc
+                    
+                    end if
+
+                end do
+                end do
+
+            end if
+
+            if (sources%gauss_beams(s)%j_max_in_this_rank) then
+
+                j_max_loc = sources%gauss_beams(s)%j_max_loc
+
+                P_vec(2) = (j_max + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                
+                i0 = nx*mpi_coords(1)
+                k0 = nz*mpi_coords(3)
+
+                do k = 1, nz
+                do i = 1, nx 
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max-1 .and. k0+k <= k_max)) then
+
+                        P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(3)   = (k0 + k - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_pp       = d + 0.5d0*dx_aux
+                        d_int      = FLOOR(d_pp/dx_aux)
+                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        H_rz = sources%gauss_beams(s)%E_rz
+
+                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                        H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Hz_inc = H_vec(3)
+
+                        mxll%Ex(i, j_max_loc, k) = mxll%Ex(i, j_max_loc, k) + dt_eps * Hz_inc
+                    
+                    end if  
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max .and. k0+k <= k_max-1)) then
+                        
+                        P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(3)   = (k0 + k + 0.5d0 - INT(mpi_dims(3)*nz/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_pp       = d + 0.5d0*dx_aux
+                        d_int      = FLOOR(d_pp/dx_aux)
+                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        H_rz = sources%gauss_beams(s)%E_rz
+
+                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                        H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Hx_inc = H_vec(1)
+
+                        mxll%Ez(i, j_max_loc, k) = mxll%Ez(i, j_max_loc, k) - dt_eps * Hx_inc
+
+                    end if
+
+                end do
+                end do
+
+            end if
+
+            if (sources%gauss_beams(s)%k_min_in_this_rank) then
+
+                k_min_loc = sources%gauss_beams(s)%k_min_loc
+
+                P_vec(3) = (k_min - 0.5d0 - INT(mpi_dims(3)*nz/2))*dr_main
+                
+                i0 = nx*mpi_coords(1)
+                j0 = ny*mpi_coords(2)
+
+                do j = 1, ny
+                do i = 1, nx 
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max-1 .and. j0+j <= j_max)) then
+
+                        P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z         = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_pp       = d + 0.5d0*dx_aux
+                        d_int      = FLOOR(d_pp/dx_aux)
+                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        H_rz = sources%gauss_beams(s)%E_rz
+
+                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                        H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Hy_inc = H_vec(2)
+
+                        mxll%Ex(i, j, k_min_loc) = mxll%Ex(i, j, k_min_loc) + dt_eps * Hy_inc
+                    
+                    end if  
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max .and. j0+j <= j_max-1)) then
+                        
+                        P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_pp       = d + 0.5d0*dx_aux
+                        d_int      = FLOOR(d_pp/dx_aux)
+                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        H_rz = sources%gauss_beams(s)%E_rz
+
+                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                        H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Hx_inc = H_vec(1)
+
+                        mxll%Ey(i, j, k_min_loc) = mxll%Ey(i, j, k_min_loc) - dt_eps * Hx_inc
+
+                    end if
+
+                end do
+                end do
+
+            end if
+
+            if (sources%gauss_beams(s)%k_max_in_this_rank) then
+
+                k_max_loc = sources%gauss_beams(s)%k_max_loc
+
+                P_vec(3) = (k_max + 0.5d0 - INT(mpi_dims(3)*nz/2))*dr_main
+                
+                i0 = nx*mpi_coords(1)
+                j0 = ny*mpi_coords(2)
+
+                do j = 1, ny
+                do i = 1, nx 
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max-1 .and. j0+j <= j_max)) then
+
+                        P_vec(1)   = (i0 + i + 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(2)   = (j0 + j - INT(mpi_dims(2)*ny/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_pp       = d + 0.5d0*dx_aux
+                        d_int      = FLOOR(d_pp/dx_aux)
+                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        H_rz = sources%gauss_beams(s)%E_rz
+
+                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                        H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Hy_inc = H_vec(2)
+
+                        mxll%Ex(i, j, k_max_loc) = mxll%Ex(i, j, k_max_loc) - dt_eps * Hy_inc
+                    
+                    end if  
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max .and. j0+j <= j_max-1)) then
+                        
+                        P_vec(1)   = (i0 + i - INT(mpi_dims(1)*nx/2))*dr_main
+                        P_vec(2)   = (j0 + j + 0.5d0 - INT(mpi_dims(2)*ny/2))*dr_main
+                        w_vec(1:3) = P_vec(1:3) - r0_vec(1:3)  
+                        z          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
+                        r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
+
+                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
+                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
+                        d_pp       = d + 0.5d0*dx_aux
+                        d_int      = FLOOR(d_pp/dx_aux)
+                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+
+                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
+                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
+                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
+
+                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
+                        H_rz = sources%gauss_beams(s)%E_rz
+
+                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+
+                        H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
+                        Hx_inc = H_vec(1)
+
+                        mxll%Ey(i, j, k_max_loc) = mxll%Ey(i, j, k_max_loc) + dt_eps * Hx_inc
+
+                    end if
+
+                end do
+                end do
+            
+            end if
+
+        end do
+
+    end select
+
+end subroutine gaussbeam_H_interactions
+
+!###################################################################################################
+
 subroutine send_E_to_J_ranks(mxll, q_group, move_q_system, myrank)
 
     class(TMxll)  , intent(inout) :: mxll

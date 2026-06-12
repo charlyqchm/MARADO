@@ -31,13 +31,13 @@ all: $(SELECTED_TARGETS)
 
 fdtd:
 	$(MAKE) -C $(FDTD_DIR) \
-		FC='$(FC)' MPI_FC='$(MPI_FC)' \
+		MPI_FC='$(MPI_FC)' \
 		USE_MPI='$(USE_MPI)' DEBUG='$(DEBUG)' \
 		BUILD='../../$(BUILD)' BIN_DIR='../../$(BIN_DIR)'
 
 design:
 	$(MAKE) -C $(DESIGN_DIR) \
-		FC='$(FC)' MPI_FC='$(MPI_FC)' \
+		MPI_FC='$(MPI_FC)' \
 		USE_MPI='$(USE_MPI)' DEBUG='$(DEBUG)' \
 		BUILD='../../$(BUILD)' BIN_DIR='../../$(BIN_DIR)'
 
