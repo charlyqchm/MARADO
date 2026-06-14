@@ -1,0 +1,9 @@
+build/
+tools/__pycache__/
+tutorials/00_FDTD_1D/box_with_1mol/
+tutorials/00_FDTD_1D/detectors.in
+tutorials/00_FDTD_1D/empty_box/
+tutorials/00_FDTD_1D/inp
+tutorials/00_FDTD_1D/mol_group_0000001.in
+tutorials/00_FDTD_1D/molecule_0000001.in
+tutorials/00_FDTD_1D/sources.in
