@@ -1,6 +1,6 @@
-# One-Mxll-to-Rule-Them-All (OMxRTA)
+# MARADO: Maxwell-coupled Real-time Atomistic Dynamics and Optics
 
-OMxRTA propagates macroscopic Maxwell's equations using the Finite-Difference Time-Domain (FDTD) method, coupled to the evolution of quantum-mechanical systems embedded in the simulation grid under the local dipole approximation. This implementation is based on the work of Maxim Sukharev:
+MARADO propagates macroscopic Maxwell's equations using the Finite-Difference Time-Domain (FDTD) method, coupled to the evolution of quantum-mechanical systems embedded in the simulation grid under the local dipole approximation. This implementation is based on the work of Maxim Sukharev:
 
 * Sukharev, Maxim, and Abraham Nitzan, "Numerical studies of the interaction of an atomic sample with the electromagnetic field in two dimensions". _Phys. Rev. A._, 84(4), 043802 (2011).
 * Sukharev, Maxim, "Efficient parallel strategy for molecular plasmonics–A numerical tool for integrating Maxwell-Schrödinger equations in three dimensions". _J. Comput. Phys._, 477, 111920 (2023).
@@ -23,7 +23,7 @@ Optional:
 
 ## Compilation
 
-OMxRTA currently links against [DFTB+](https://github.com/dftbplus/dftbplus). Build and install DFTB+ first (run the following commands in the DFTB+ source directory):
+MARADO currently links against [DFTB+](https://github.com/dftbplus/dftbplus). Build and install DFTB+ first (run the following commands in the DFTB+ source directory):
 
 ```bash
 FC=gfortran CC=gcc cmake -DINSTANCE_SAFE_BUILD=True -B _build .
@@ -36,7 +36,7 @@ Once DFTB+ has been installed, set the `DFTB_INSTALL` environment variable to th
 ```bash
 export DFTB_INSTALL=./dftbplus/_build/_install
 ```
-Then build OMxRTA from the cloned repository directory:
+Then build MARADO from the cloned repository directory:
 ```bash
 make
 ```
@@ -44,13 +44,14 @@ To build the MPI-enabled version:
 ```bash
 make mpi
 ```
-This, by default, creates the `build` folder, where modules, objects, and the executable are saved. The executable will be stored as `build/bin/OMxRTA.e`
+This, by default, creates the `build` folder, where modules, objects, and the executable are saved. The executable will be stored as `build/bin/MARADO.e`
 
 ## Running the code
 
-Run `OMxRTA.e` from the directory where you want to execute the simulation.
-That directory must contain an input file named `inp`; the available input variables are documented in `src/input_mod.f90`.
-Documentation for additional inputs (classical media and quantum systems) will be added in future updates.
+Run `MARADO.e` from the directory where you want to execute the simulation.
+That directory must contain an input file named `inp` as well as other files related to the molecular system, medium, sources and detectors. For more details about the input files, check the tutorials in the `tutorial` directory. 
+
+The directory `tools` contains Python functions to create the different input files with a detailed description of the arguments required.
 
 ## Output
 
@@ -59,7 +60,6 @@ These outputs correspond to components of the electric and magnetic fields at a 
 
 Detector definitions must be provided in a file named `detectors.in`, with exactly `mxll_n_detectors` lines.
 Each detector output is written in a directory named `output_detector_XXXXXXX` (7-digit numbering), where the directory number matches the corresponding line number in `detectors.in`.
-For more details about the expected `detectors.in` format and the generated files, check `init_detectors_outputs` in `src/output_mod.f90` and `init_detector` in `src/detector_mod.f90`.
 
 The variable `mxll_dt_q_print` controls how often information about the quantum systems in `q_groups` is printed.
 This information is stored in directories named `output_q_group_XXXX` (4-digit numbering).
@@ -70,4 +70,4 @@ More detailed information will be provided in the future documentation.
 
 1. [Bustamante, Carlos M., Franco P. Bonafé, Maxim Sukharev, Michael Ruggenthaler, Abraham Nitzan, and Angel Rubio, "Molecular polariton dynamics in realistic cavities". _JCTC_ 21(19), 9823-9831 (2025).](https://pubs.acs.org/doi/full/10.1021/acs.jctc.5c01318)
 2. [Sidler, Dominik, Carlos M. Bustamante, Franco P. Bonafé, Michael Ruggenthaler, Maxim Sukharev, and Angel Rubio, "Density-functional tight binding meets Maxwell: unraveling the mysteries of (strong) light–matter coupling efficiently". _Nanophotonics_, 14(27), 4941-4955 (2025).](https://www.degruyterbrill.com/document/doi/10.1515/nanoph-2025-0453/html)
-3. [Bustamante, Carlos M., Franco P. Bonafé, Richard Richardson, Michael Ruggenthaler, Wenxiang Ying, Abraham Nitzan, Maxim Sukharev, and Angel Rubio, "Collective Rabi-driven vibrational activation in molecular polaritons". _arXiv_, preprint arXiv:2601.16299 (2026).](https://arxiv.org/abs/2601.16299)
+3. [Bustamante, Carlos M., Franco P. Bonafé, Richard Richardson, Michael Ruggenthaler, Wenxiang Ying, Abraham Nitzan, Maxim Sukharev, and Angel Rubio, "Collective Rabi-driven vibrational activation in molecular polaritons". _Nano Letters_, 26(15), 5298-5306 (2026).](https://pubs.acs.org/doi/full/10.1021/acs.nanolett.6c00832)

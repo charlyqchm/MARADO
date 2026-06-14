@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 au_to_eV = 27.2114
+au_to_fs = 0.02418884
 
 def read_file(filename, col_x, col_y):
     x_array = []
@@ -148,3 +149,139 @@ def plot_trans_spectrum_1D(directory=None, Ex_detector=1, Hy_detector=2,
     plt.show()
 
     return
+
+
+def _read_energy_and_dipole_file(filename):
+    time_values = []
+    molecule_data = {}
+    current_time = None
+
+    with open(filename, "r") as infile:
+        for line in infile:
+            stripped = line.strip()
+
+            if not stripped:
+                continue
+
+            if stripped.startswith("# Time"):
+                # Header format: "# Time = <value> (a.u.)"
+                try:
+                    current_time = float(stripped.split("=")[1].split()[0])
+                    time_values.append(current_time)
+                except (IndexError, ValueError):
+                    current_time = None
+                continue
+
+            if stripped.startswith("#"):
+                continue
+
+            if current_time is None:
+                continue
+
+            parts = stripped.split()
+            if len(parts) < 5:
+                continue
+
+            try:
+                mol_id = int(parts[0])
+                energy = float(parts[1])
+                mu_x = float(parts[2])
+                mu_y = float(parts[3])
+                mu_z = float(parts[4])
+            except ValueError:
+                continue
+
+            if mol_id not in molecule_data:
+                molecule_data[mol_id] = {
+                    "time": [],
+                    "energy": [],
+                    "mu_x": [],
+                    "mu_y": [],
+                    "mu_z": [],
+                }
+
+            molecule_data[mol_id]["time"].append(current_time)
+            molecule_data[mol_id]["energy"].append(energy)
+            molecule_data[mol_id]["mu_x"].append(mu_x)
+            molecule_data[mol_id]["mu_y"].append(mu_y)
+            molecule_data[mol_id]["mu_z"].append(mu_z)
+
+    for mol_id in molecule_data:
+        for key in molecule_data[mol_id]:
+            molecule_data[mol_id][key] = np.array(molecule_data[mol_id][key])
+
+    return molecule_data
+
+
+def plot_energy_and_dipole(filename=None, molecule_ids=None, quantity="energy",
+                           x_lim=None, y_lim=None, help=False):
+
+    if help:
+        print("This function plots a molecular observable from energy_and_dipole.dat.\n"
+              "The following parameters can be specified:\n"
+              "       filename      -> Path to energy_and_dipole.dat.\n"
+              "       molecule_ids  -> List of molecule indices to plot (e.g. [1, 2, 3]).\n"
+              "       quantity      -> Observable to plot: 'energy', 'mu_x', 'mu_y', or 'mu_z'.\n"
+              "       x_lim         -> Limits of the x-axis in atomic units of time.\n"
+              "       y_lim         -> Limits of the y-axis.\n")
+        return
+
+    if filename is None:
+        print("Error: filename must be specified.")
+        return
+
+    if molecule_ids is None or len(molecule_ids) == 0:
+        print("Error: molecule_ids must be a non-empty list.")
+        return
+
+    valid_quantities = {"energy", "mu_x", "mu_y", "mu_z"}
+    if quantity not in valid_quantities:
+        print("Error: quantity must be one of: energy, mu_x, mu_y, mu_z.")
+        return
+
+    data = _read_energy_and_dipole_file(filename)
+
+    if len(data) == 0:
+        print("Error: no molecular data found in file.")
+        return
+
+    fig, ax = plt.subplots()
+    plotted_any = False
+
+    for mol_id in molecule_ids:
+        if mol_id not in data:
+            print("Warning: molecule", mol_id, "not found in file and will be skipped.")
+            continue
+
+        mol_time = data[mol_id]["time"]
+        mol_values = data[mol_id][quantity]
+
+        ax.plot(mol_time*au_to_fs, mol_values, label="mol " + str(mol_id))
+        plotted_any = True
+
+    if not plotted_any:
+        print("Error: none of the requested molecules were found in file.")
+        return
+
+    y_labels = {
+        "energy": "Energy (eV)",
+        "mu_x": "Dipole_x (a.u.)",
+        "mu_y": "Dipole_y (a.u.)",
+        "mu_z": "Dipole_z (a.u.)",
+    }
+
+    ax.set_xlabel("Time (a.u.)")
+    ax.set_ylabel(y_labels[quantity])
+    ax.legend()
+
+    if x_lim is not None:
+        ax.set_xlim(x_lim[0], x_lim[1])
+
+    if y_lim is not None:
+        ax.set_ylim(y_lim[0], y_lim[1])
+
+    plt.tight_layout()
+    plt.show()
+
+    return
+

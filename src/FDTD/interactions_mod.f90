@@ -1566,7 +1566,7 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
     integer            , intent(in)   :: mpi_dims(3)
     real(dp)           , intent(in)   :: time
 
-    complex(dp) :: E_rz
+    complex(dp) :: E_rzt
     integer  :: s
     integer  :: i_min, j_min, k_min
     integer  :: i_max, j_max, k_max
@@ -1576,7 +1576,6 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
     integer  :: i_max_loc, j_max_loc, k_max_loc
     integer  :: nx, ny, nz
     integer  :: d_int
-    integer  :: m0 = 10
     real(dp) :: E0
     real(dp) :: dt_eps
     real(dp) :: sin_psi
@@ -1586,10 +1585,7 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
     real(dp) :: z
     real(dp) :: r_mod
     real(dp) :: r_vec(3) = 0.0_dp
-    real(dp) :: d, d_p, d_pp
-    real(dp) :: dx_aux
     real(dp) :: dr_main
-    real(dp) :: A_vec(3)
     real(dp) :: P_vec(3)
     real(dp) :: r0_vec(3)
     real(dp) :: v_vec(3)
@@ -1624,8 +1620,6 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
             P_vec    = 0.0d0
             w_vec    = 0.0d0
             v_vec    = sources%gauss_beams(s)%v_vec
-            A_vec    = sources%gauss_beams(s)%A_vec
-            dx_aux   = sources%gauss_beams(s)%mxll_inc_Re%dr
             
             cos_psi  = DCOS(sources%gauss_beams(s)%psi)
             sin_psi  = DSIN(sources%gauss_beams(s)%psi)
@@ -1653,22 +1647,11 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod       = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)  
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_int      = FLOOR(d/dx_aux)
-                            d_p        = (d - d_int*dx_aux)/dx_aux
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
 
-                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+                            E_rzt = sources%gauss_beams(s)%E_rzt
 
-                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-
-                            E_rz = sources%gauss_beams(s)%E_rz
-
-                            Ez_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                            Ez_inc = REAL(E_rzt)
 
                             mxll%Hy(i_min_loc-1,j) = mxll%Hy(i_min_loc-1,j) - &
                                                      dt_mu * sin_psi * Ez_inc
@@ -1694,21 +1677,10 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod       = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_int      = FLOOR(d/dx_aux)
-                            d_p        = (d - d_int*dx_aux)/dx_aux
-                            
-                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            E_rzt = sources%gauss_beams(s)%E_rzt
 
-                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            E_rz = sources%gauss_beams(s)%E_rz
-
-                            Ez_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                            Ez_inc = REAL(E_rzt)
 
                             mxll%Hy(i_max_loc,j) = mxll%Hy(i_max_loc, j) + &
                                                    dt_mu * sin_psi * Ez_inc
@@ -1735,21 +1707,10 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_int      = FLOOR(d/dx_aux)
-                            d_p        = (d - d_int*dx_aux)/dx_aux
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            E_rzt = sources%gauss_beams(s)%E_rzt
 
-                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-
-                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            E_rz = sources%gauss_beams(s)%E_rz
-
-                            Ez_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                            Ez_inc = REAL(E_rzt)
 
                             mxll%Hx(i,j_min_loc-1) = mxll%Hx(i,j_min_loc-1) + &
                                                      dt_mu * sin_psi * Ez_inc
@@ -1775,21 +1736,10 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_int      = FLOOR(d/dx_aux)
-                            d_p        = (d - d_int*dx_aux)/dx_aux
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            E_rzt = sources%gauss_beams(s)%E_rzt
 
-                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-
-                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            E_rz = sources%gauss_beams(s)%E_rz
-
-                            Ez_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                            Ez_inc = REAL(E_rzt)
 
                             mxll%Hx(i,j_max_loc) = mxll%Hx(i,j_max_loc) - &
                                                      dt_mu * sin_psi * Ez_inc
@@ -1821,21 +1771,10 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_int      = FLOOR(d/dx_aux)
-                            d_p        = (d - d_int*dx_aux)/dx_aux
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            E_rzt = sources%gauss_beams(s)%E_rzt
 
-                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-
-                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            E_rz = sources%gauss_beams(s)%E_rz
-
-                            Ey_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                            Ey_inc = REAL(E_rzt)
 
                             mxll%Hz(i_min_loc-1,j) = mxll%Hz(i_min_loc-1,j) + &
                                                      dt_mu * sin_phi * cos_psi * Ey_inc
@@ -1861,20 +1800,10 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_int      = FLOOR(d/dx_aux)
-                            d_p        = (d - d_int*dx_aux)/dx_aux
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            E_rzt = sources%gauss_beams(s)%E_rzt
 
-                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-
-                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            E_rz = sources%gauss_beams(s)%E_rz
-                            Ey_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                            Ey_inc = REAL(E_rzt)
 
                             mxll%Hz(i_max_loc,j) = mxll%Hz(i_max_loc,j) - &
                                                     dt_mu * sin_phi * cos_psi * Ey_inc
@@ -1899,21 +1828,10 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_int      = FLOOR(d/dx_aux)
-                            d_p        = (d - d_int*dx_aux)/dx_aux
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            E_rzt = sources%gauss_beams(s)%E_rzt
+                            Ex_inc = REAL(E_rzt)
 
-                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-
-                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            E_rz = sources%gauss_beams(s)%E_rz
-                            Ex_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
-                        
                             mxll%Hz(i,j_min_loc-1) = mxll%Hz(i,j_min_loc-1) - &
                                                      dt_mu * cos_phi * cos_psi * Ex_inc
                         end if
@@ -1937,21 +1855,10 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_int      = FLOOR(d/dx_aux)
-                            d_p        = (d - d_int*dx_aux)/dx_aux
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            E_rzt = sources%gauss_beams(s)%E_rzt
 
-                            E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-
-                            E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            E_rz = sources%gauss_beams(s)%E_rz
-
-                            Ex_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                            Ex_inc = REAL(E_rzt)
 
                             mxll%Hz(i,j_max_loc) = mxll%Hz(i,j_max_loc) + &
                                                      dt_mu * cos_phi * cos_psi * Ex_inc
@@ -1982,9 +1889,7 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
 
             P_vec    = 0.0d0
             w_vec    = 0.0d0
-            A_vec    = sources%gauss_beams(s)%A_vec
             v_vec    = sources%gauss_beams(s)%v_vec
-            dx_aux   = sources%gauss_beams(s)%mxll_inc_Re%dr
 
             v1_vec   = CROSS_PRODUCT(v_vec, uz_vec)
             v3_vec   = CROSS_PRODUCT(v1_vec, v_vec)
@@ -2014,20 +1919,9 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_int      = FLOOR(d/dx_aux)
-                        d_p        = (d - d_int*dx_aux)/dx_aux
-
-                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-
-                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        E_rz = sources%gauss_beams(s)%E_rz
-                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        E_rzt = sources%gauss_beams(s)%E_rzt
+                        E_inc = REAL(E_rzt)
 
                         E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Ey_inc = E_vec(2)
@@ -2045,20 +1939,9 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_int      = FLOOR(d/dx_aux)
-                        d_p        = (d - d_int*dx_aux)/dx_aux
-
-                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-
-                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        E_rz = sources%gauss_beams(s)%E_rz
-                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        E_rzt = sources%gauss_beams(s)%E_rzt
+                        E_inc = REAL(E_rzt)
                         
                         E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Ez_inc = E_vec(3)
@@ -2090,21 +1973,9 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_int      = FLOOR(d/dx_aux)
-                        d_p        = (d - d_int*dx_aux)/dx_aux
-
-                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-
-                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-
-                        E_rz = sources%gauss_beams(s)%E_rz
-                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        E_rzt = sources%gauss_beams(s)%E_rzt
+                        E_inc = REAL(E_rzt)
 
                         E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Ey_inc = E_vec(2)
@@ -2122,20 +1993,9 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_int      = FLOOR(d/dx_aux)
-                        d_p        = (d - d_int*dx_aux)/dx_aux
-    
-                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-
-                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        E_rz = sources%gauss_beams(s)%E_rz
-                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        E_rzt = sources%gauss_beams(s)%E_rzt
+                        E_inc = REAL(E_rzt)
 
                         E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Ez_inc = E_vec(3)
@@ -2168,20 +2028,9 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_int      = FLOOR(d/dx_aux)
-                        d_p        = (d - d_int*dx_aux)/dx_aux
-
-                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-
-                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        E_rz = sources%gauss_beams(s)%E_rz
-                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        E_rzt = sources%gauss_beams(s)%E_rzt
+                        E_inc = REAL(E_rzt)
 
                         E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Ex_inc = E_vec(1)
@@ -2199,14 +2048,9 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_int      = FLOOR(d/dx_aux)
-                        d_p        = (d - d_int*dx_aux)/dx_aux
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        E_rz = sources%gauss_beams(s)%E_rz
-                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        E_rzt = sources%gauss_beams(s)%E_rzt
+                        E_inc = REAL(E_rzt)
 
                         E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Ez_inc = E_vec(3)
@@ -2239,19 +2083,9 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_int      = FLOOR(d/dx_aux)
-                        d_p        = (d - d_int*dx_aux)/dx_aux
-
-                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-                        
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        E_rz = sources%gauss_beams(s)%E_rz
-                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        E_rzt = sources%gauss_beams(s)%E_rzt
+                        E_inc = REAL(E_rzt)
 
                         E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Ex_inc = E_vec(1)
@@ -2269,19 +2103,9 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_int      = FLOOR(d/dx_aux)
-                        d_p        = (d - d_int*dx_aux)/dx_aux
-
-                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        E_rz = sources%gauss_beams(s)%E_rz
-                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        E_rzt = sources%gauss_beams(s)%E_rzt
+                        E_inc = REAL(E_rzt)
 
                         E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Ez_inc = E_vec(3)
@@ -2313,19 +2137,9 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_int      = FLOOR(d/dx_aux)
-                        d_p        = (d - d_int*dx_aux)/dx_aux
-
-                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        E_rz = sources%gauss_beams(s)%E_rz
-                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        E_rzt = sources%gauss_beams(s)%E_rzt
+                        E_inc = REAL(E_rzt)
 
                         E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Ex_inc = E_vec(1)
@@ -2344,18 +2158,9 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_int      = FLOOR(d/dx_aux)
-                        d_p        = (d - d_int*dx_aux)/dx_aux
-
-                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                    d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                    d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        E_rz = sources%gauss_beams(s)%E_rz
-                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        E_rzt = sources%gauss_beams(s)%E_rzt
+                        E_inc = REAL(E_rzt)
 
                         E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Ey_inc = E_vec(2)
@@ -2389,19 +2194,9 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_int      = FLOOR(d/dx_aux)
-                        d_p        = (d - d_int*dx_aux)/dx_aux
-
-                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        E_rz = sources%gauss_beams(s)%E_rz
-                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        E_rzt = sources%gauss_beams(s)%E_rzt
+                        E_inc = REAL(E_rzt)
 
                         E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Ex_inc = E_vec(1)
@@ -2420,19 +2215,9 @@ subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod       = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_int      = FLOOR(d/dx_aux)
-                        d_p        = (d - d_int*dx_aux)/dx_aux
-
-                        E_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Ex(d_int+m0+1)
-                        E_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Ex(d_int+m0+1)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        E_rz = sources%gauss_beams(s)%E_rz
-                        E_inc = REAL(E_rz*(E_t_Re + Z_I*E_t_Im))
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        E_rzt = sources%gauss_beams(s)%E_rzt
+                        E_inc = REAL(E_rzt)
 
                         E_vec = E_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Ey_inc = E_vec(2)
@@ -2461,7 +2246,7 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
     integer            , intent(in)   :: mpi_dims(3)
     real(dp)           , intent(in)   :: time
 
-    complex(dp) :: H_rz
+    complex(dp) :: H_rzt
     integer  :: s
     integer  :: i_min, j_min, k_min
     integer  :: i_max, j_max, k_max
@@ -2470,20 +2255,16 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
     integer  :: i_min_loc, j_min_loc, k_min_loc
     integer  :: i_max_loc, j_max_loc, k_max_loc
     integer  :: nx, ny, nz
-    integer  :: m0 = 10
-    integer  :: d_int
-    real(dp) :: dx_aux
     real(dp) :: sin_psi
     real(dp) :: cos_psi
     real(dp) :: cos_phi
     real(dp) :: sin_phi
     real(dp) :: z
-    real(dp) :: d, d_p, d_pp
+    real(dp) :: inv_eta
     real(dp) :: r_mod
     real(dp) :: r_vec(3) = 0.0_dp
     real(dp) :: dr_main
     real(dp) :: r0_vec(3)
-    real(dp) :: A_vec(3)
     real(dp) :: P_vec(3)
     real(dp) :: v_vec(3)
     real(dp) :: w_vec(3)
@@ -2495,6 +2276,9 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
     real(dp) :: H_t_Re, H_t_Im
     real(dp) :: Hx_inc, Hy_inc, Hz_inc
     real(dp) :: dt_eps
+
+
+    inv_eta = 1.0d0 / SQRT(mu0/eps0)
 
     select type(mxll)
     class is(TMxll_1D)
@@ -2514,9 +2298,7 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
 
             P_vec    = 0.0d0
             w_vec    = 0.0d0
-            A_vec    = sources%gauss_beams(s)%A_vec
             v_vec    = sources%gauss_beams(s)%v_vec
-            dx_aux   = sources%gauss_beams(s)%mxll_inc_Re%dr
             
             cos_psi  = DCOS(sources%gauss_beams(s)%psi - pi0/2)
             sin_psi  = DSIN(sources%gauss_beams(s)%psi - pi0/2)
@@ -2544,21 +2326,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_pp       = d + 0.5d0*dx_aux
-                            d_int      = FLOOR(d_pp/dx_aux)
-                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            H_rz = sources%gauss_beams(s)%E_rz
-
-                            Hy_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                            Hy_inc = REAL(H_rzt)
 
                             mxll%Ez(i_min_loc, j) = mxll%Ez(i_min_loc, j) - &
                                                      dt_eps * sin_phi * cos_psi * Hy_inc
@@ -2585,21 +2356,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
                             
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_pp       = d + 0.5d0*dx_aux
-                            d_int      = FLOOR(d_pp/dx_aux)
-                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            H_rz = sources%gauss_beams(s)%E_rz
-
-                            Hy_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                            Hy_inc = REAL(H_rzt)
 
                             mxll%Ez(i_max_loc, j) = mxll%Ez(i_max_loc, j) + &
                                                        dt_eps * sin_phi * cos_psi * Hy_inc
@@ -2626,21 +2386,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_pp       = d + 0.5d0*dx_aux
-                            d_int      = FLOOR(d_pp/dx_aux)
-                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
-
-                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            H_rz = sources%gauss_beams(s)%E_rz
-
-                            Hx_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                            
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
+                            Hx_inc = REAL(H_rzt)
 
                             mxll%Ez(i,j_min_loc) = mxll%Ez(i,j_min_loc) + &
                                                      dt_eps * cos_phi * cos_psi * Hx_inc
@@ -2665,21 +2414,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_pp       = d + 0.5d0*dx_aux
-                            d_int      = FLOOR(d_pp/dx_aux)
-                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            H_rz = sources%gauss_beams(s)%E_rz
-
-                            Hx_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                            Hx_inc = REAL(H_rzt)
 
                             mxll%Ez(i,j_max_loc) = mxll%Ez(i,j_max_loc) - &
                                                      dt_eps * cos_phi * cos_psi * Hx_inc
@@ -2711,21 +2449,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_pp       = d + 0.5d0*dx_aux
-                            d_int      = FLOOR(d_pp/dx_aux)
-                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            H_rz = sources%gauss_beams(s)%E_rz
-
-                            Hz_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                            Hz_inc = REAL(H_rzt)
 
                             mxll%Ey(i_min_loc, j) = mxll%Ey(i_min_loc, j) + &
                                                     dt_eps * sin_psi * Hz_inc
@@ -2751,21 +2478,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_pp       = d + 0.5d0*dx_aux
-                            d_int      = FLOOR(d_pp/dx_aux)
-                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            H_rz = sources%gauss_beams(s)%E_rz
-
-                            Hz_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                            Hz_inc = REAL(H_rzt)
 
                             mxll%Ey(i_max_loc, j) = mxll%Ey(i_max_loc, j) - &
                                                     dt_eps * sin_psi * Hz_inc
@@ -2791,20 +2507,9 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_pp       = d + 0.5d0*dx_aux
-                            d_int      = FLOOR(d_pp/dx_aux)
-                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
-
-                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            H_rz = sources%gauss_beams(s)%E_rz
-                            Hz_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
+                            Hz_inc = REAL(H_rzt)
 
                             mxll%Ex(i,j_min_loc) = mxll%Ex(i,j_min_loc) - &
                                                     dt_eps * sin_psi * Hz_inc
@@ -2828,20 +2533,11 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                             r_vec(1:2) = w_vec(1:2) - z*v_vec(1:2)
                             r_mod      = SQRT(DOT_PRODUCT(r_vec(1:2),r_vec(1:2)))
 
-                            w_vec(1:2) = P_vec(1:2) - A_vec(1:2)
-                            d          = DOT_PRODUCT(w_vec(1:2),v_vec(1:2))
-                            d_pp       = d + 0.5d0*dx_aux
-                            d_int      = FLOOR(d_pp/dx_aux)
-                            d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                            call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                            H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
+                            
+                            Hz_inc = REAL(H_rzt)
 
-                            H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                            H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                     d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                            call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                            H_rz = sources%gauss_beams(s)%E_rz
-                            Hz_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
 
                             mxll%Ex(i,j_max_loc) = mxll%Ex(i,j_max_loc) + &
                                                     dt_eps * sin_psi * Hz_inc
@@ -2873,9 +2569,7 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
 
             P_vec    = 0.0d0
             w_vec    = 0.0d0
-            A_vec    = sources%gauss_beams(s)%A_vec
             v_vec    = sources%gauss_beams(s)%v_vec
-            dx_aux   = sources%gauss_beams(s)%mxll_inc_Re%dr
 
             v1_vec   = CROSS_PRODUCT(v_vec, uz_vec)
             v3_vec   = CROSS_PRODUCT(v1_vec, v_vec)
@@ -2911,21 +2605,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_pp       = d + 0.5d0*dx_aux
-                        d_int      = FLOOR(d_pp/dx_aux)
-                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        H_rz = sources%gauss_beams(s)%E_rz
-
-                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                        H_inc = REAL(H_rzt)
 
                         H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Hz_inc = H_vec(3)
@@ -2944,21 +2627,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_pp       = d + 0.5d0*dx_aux
-                        d_int      = FLOOR(d_pp/dx_aux)
-                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time+mxll%dt*0.5d0)
+                        H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        H_rz = sources%gauss_beams(s)%E_rz
-
-                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                        H_inc = REAL(H_rzt)
 
                         H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Hy_inc = H_vec(2)
@@ -2993,21 +2665,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_pp       = d + 0.5d0*dx_aux
-                        d_int      = FLOOR(d_pp/dx_aux)
-                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time)
+                        H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        H_rz = sources%gauss_beams(s)%E_rz
-
-                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                        H_inc = REAL(H_rzt)
 
                         H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Hz_inc = H_vec(3)
@@ -3026,21 +2687,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_pp       = d + 0.5d0*dx_aux
-                        d_int      = FLOOR(d_pp/dx_aux)
-                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time+mxll%dt*0.5d0)
+                        H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        H_rz = sources%gauss_beams(s)%E_rz
-
-                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                        H_inc = REAL(H_rzt)
 
                         H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Hy_inc = H_vec(2)
@@ -3074,21 +2724,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_pp       = d + 0.5d0*dx_aux
-                        d_int      = FLOOR(d_pp/dx_aux)
-                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time+mxll%dt*0.5d0)
+                        H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        H_rz = sources%gauss_beams(s)%E_rz
-
-                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                        H_inc = REAL(H_rzt)
 
                         H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Hz_inc = H_vec(3)
@@ -3107,21 +2746,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_pp       = d + 0.5d0*dx_aux
-                        d_int      = FLOOR(d_pp/dx_aux)
-                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time+mxll%dt*0.5d0)
+                        H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        H_rz = sources%gauss_beams(s)%E_rz
-
-                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                        H_inc = REAL(H_rzt)
 
                         H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Hx_inc = H_vec(1)
@@ -3156,21 +2784,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_pp       = d + 0.5d0*dx_aux
-                        d_int      = FLOOR(d_pp/dx_aux)
-                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time+mxll%dt*0.5d0)
+                        H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        H_rz = sources%gauss_beams(s)%E_rz
-
-                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                        H_inc = REAL(H_rzt)
 
                         H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Hz_inc = H_vec(3)
@@ -3189,21 +2806,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_pp       = d + 0.5d0*dx_aux
-                        d_int      = FLOOR(d_pp/dx_aux)
-                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time+mxll%dt*0.5d0)
+                        H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        H_rz = sources%gauss_beams(s)%E_rz
-
-                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                        H_inc = REAL(H_rzt)
 
                         H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Hx_inc = H_vec(1)
@@ -3238,21 +2844,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_pp       = d + 0.5d0*dx_aux
-                        d_int      = FLOOR(d_pp/dx_aux)
-                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time+mxll%dt*0.5d0)
+                        H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        H_rz = sources%gauss_beams(s)%E_rz
-
-                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                        H_inc = REAL(H_rzt)
 
                         H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Hy_inc = H_vec(2)
@@ -3271,21 +2866,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_pp       = d + 0.5d0*dx_aux
-                        d_int      = FLOOR(d_pp/dx_aux)
-                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time+mxll%dt*0.5d0)
+                        H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        H_rz = sources%gauss_beams(s)%E_rz
-
-                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                        H_inc = REAL(H_rzt)
 
                         H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Hx_inc = H_vec(1)
@@ -3320,21 +2904,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_pp       = d + 0.5d0*dx_aux
-                        d_int      = FLOOR(d_pp/dx_aux)
-                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time+mxll%dt*0.5d0)
+                        H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        H_rz = sources%gauss_beams(s)%E_rz
-
-                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                        H_inc = REAL(H_rzt)
 
                         H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Hy_inc = H_vec(2)
@@ -3353,21 +2926,10 @@ subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                         r_vec(1:3) = w_vec(1:3) - z*v_vec(1:3)
                         r_mod      = SQRT(DOT_PRODUCT(r_vec(1:3),r_vec(1:3)))
 
-                        w_vec(1:3) = P_vec(1:3) - A_vec(1:3)
-                        d          = DOT_PRODUCT(w_vec(1:3),v_vec(1:3))
-                        d_pp       = d + 0.5d0*dx_aux
-                        d_int      = FLOOR(d_pp/dx_aux)
-                        d_p        = (d_pp - d_int*dx_aux)/dx_aux
+                        call sources%gauss_beams(s)%compute_time_space_profile(r_mod, z, time+mxll%dt*0.5d0)
+                        H_rzt = sources%gauss_beams(s)%E_rzt*inv_eta
 
-                        H_t_Re = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Re%Hy(d_int+m0)
-                        H_t_Im = (1-d_p) * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0-1) + &
-                                 d_p   * sources%gauss_beams(s)%mxll_inc_Im%Hy(d_int+m0)
-
-                        call sources%gauss_beams(s)%compute_spatial_profile(r_mod, z)
-                        H_rz = sources%gauss_beams(s)%E_rz
-
-                        H_inc = REAL(H_rz*(H_t_Re + Z_I*H_t_Im))
+                        H_inc = REAL(H_rzt)
 
                         H_vec = H_inc * (cos_psi * v1_vec + sin_psi * v3_vec)
                         Hx_inc = H_vec(1)

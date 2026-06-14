@@ -43,7 +43,7 @@ SRC+=optimization_problem_mod.f90
 MAIN=ch_inv_design.f90
 OBJ=$(addprefix $(OBJ_DIR)/,$(SRC:.f90=.o))
 OBJ+=$(OBJ_DIR)/$(MAIN:.f90=.o)
-EXC=$(BIN_DIR)/OMxRTA_inv_design.e
+EXC=$(BIN_DIR)/MARADO_inv_design.e
 
 .PHONY: all clean mpi debug mpi_debug
 

@@ -21,7 +21,6 @@ module sources_subs_mod
         procedure :: read_init_sources
         procedure :: propagate_pw_srcs
         procedure :: propagate_p_srcs
-        procedure :: propagate_gaussbeam_srcs
         procedure :: kill_sources
 
     end type TSources_list
@@ -101,13 +100,9 @@ module sources_subs_mod
 
     type :: TGaussbeamSrc
 
-        complex(dp)         :: E_t
-        complex(dp)         :: E_rz
-        type(TMxll_1D)      :: mxll_inc_Re
-        type(TMxll_1D)      :: mxll_inc_Im
-        integer             :: dim
-        real(dp)            :: E_r
+        complex(dp)         :: E_rzt
         real(dp)            :: E_amp
+        integer             :: dim
         !Assuming the k vector is initially parallel to z, the E field to x and the H field to y,
         !phi is the angle respect to x, theta is the angle respect to z and psi is the angle
         !of rotation of the E field respect to the plane defined by k and z.  
@@ -115,13 +110,11 @@ module sources_subs_mod
         real(dp)            :: theta
         real(dp)            :: psi
     
-        real(dp)            :: A_vec(3)
         real(dp)            :: v_vec(3)
         real(dp)            :: freq
         real(dp)            :: t0
-        real(dp)            :: tau
-        real(dp)            :: t_init
-        real(dp)            :: t_final
+        real(dp)            :: dz_ramp
+        real(dp)            :: z0_ramp
         real(dp)            :: phase
         real(dp)            :: w0
         real(dp)            :: w
@@ -129,6 +122,7 @@ module sources_subs_mod
         real(dp)            :: r0(3) !focus position
         real(dp)            :: lambda
         real(dp)            :: k
+        real(dp)            :: r_min, r_max
         integer             :: i_min, i_max
         integer             :: j_min, j_max
         integer             :: k_min, k_max
@@ -143,8 +137,7 @@ module sources_subs_mod
 
         procedure :: init_gaussbeam_src
         procedure :: kill_gaussbeam_src
-        procedure :: propagate_gaussbeam_src
-        procedure :: compute_spatial_profile
+        procedure :: compute_time_space_profile
 
     end type TGaussbeamSrc
 
@@ -333,21 +326,6 @@ subroutine propagate_pw_srcs(this, time)
     end do
 
 end subroutine propagate_pw_srcs
-
-!###################################################################################################
-
-subroutine propagate_gaussbeam_srcs(this, time)
-
-    class(TSources_list), intent(inout) :: this
-    real(dp)            , intent(in)  :: time
-
-    integer :: i
-
-    do i = 1, this%n_gb_src
-        call this%gauss_beams(i)%propagate_gaussbeam_src(time)
-    end do
-
-end subroutine propagate_gaussbeam_srcs
 
 !###################################################################################################
 
@@ -816,10 +794,8 @@ subroutine init_gaussbeam_src(this, input_ch, dim, dt, dr, grid_Ndims, mpi_coord
     real(dp)           :: theta
     real(dp)           :: psi
     real(dp)           :: freq
-    real(dp)           :: t0
-    real(dp)           :: tau
-    real(dp)           :: t_init
-    real(dp)           :: t_final
+    real(dp)           :: dz_ramp
+    real(dp)           :: z0_ramp
     real(dp)           :: phase
     real(dp)           :: r0(3)
     real(dp)           :: w0
@@ -827,9 +803,9 @@ subroutine init_gaussbeam_src(this, input_ch, dim, dt, dr, grid_Ndims, mpi_coord
     real(dp)           :: y_min, y_max
     real(dp)           :: z_min, z_max
 
-    read(input_ch, *) type_src_ch, E_amp, phi, theta, psi, freq, t0, tau, &
+    read(input_ch, *) type_src_ch, E_amp, phi, theta, psi, freq, &
                       x_min, x_max, y_min, y_max, z_min, z_max, &
-                      t_init, t_final, phase, r0(1), r0(2), r0(3), w0
+                      phase, r0(1), r0(2), r0(3), w0, dz_ramp, z0_ramp
 
     this%dim   = dim
     this%E_amp = E_amp
@@ -844,16 +820,14 @@ subroutine init_gaussbeam_src(this, input_ch, dim, dt, dr, grid_Ndims, mpi_coord
 
     
     this%freq    = freq * ev_to_au
-    this%t0      = t0   * fs_to_au
-    this%tau     = tau  * fs_to_au
-    this%t_init  = t_init  * fs_to_au
-    this%t_final = t_final * fs_to_au
     this%phase   = phase
     this%r0      = r0 * nm_to_au
     this%w0      = w0 * nm_to_au
     this%lambda  = 2*pi0*c0/this%freq
     this%k       = 2*pi0/this%lambda
     this%z_R     = pi0*this%w0**2/this%lambda
+    this%dz_ramp = dz_ramp * nm_to_au
+    this%z0_ramp = z0_ramp * nm_to_au
 
     x_min  = x_min * nm_to_au
     x_max  = x_max * nm_to_au
@@ -969,76 +943,15 @@ subroutine init_gaussbeam_src(this, input_ch, dim, dt, dr, grid_Ndims, mpi_coord
         dr_1D = dr
     case (2)
         this%theta = pi0/2.0d0 
-        dr_1D      = dr * SQRT( DCOS(this%phi)**4 + DSIN(this%phi)**4 )
         this%v_vec =  (/DCOS(this%phi), DSIN(this%phi), 0.0d0/)
-        this%A_vec = 0.0d0 
 
-        if (phi >= 0.0_dp .and. phi <= 90.0_dp) then
-            this%A_vec(1) = (i_min - int(grid_Ndims(1)*mpi_dims(1)/2))*dr
-            this%A_vec(2) = (j_min - int(grid_Ndims(2)*mpi_dims(2)/2))*dr
-        else if (phi > 90.0_dp .and. phi <= 180.0_dp) then
-            this%A_vec(1) = (i_max - int(grid_Ndims(1)*mpi_dims(1)/2))*dr
-            this%A_vec(2) = (j_min - int(grid_Ndims(2)*mpi_dims(2)/2))*dr
-        else if (phi > 180.0_dp .and. phi <= 270.0_dp) then
-            this%A_vec(1) = (i_max - int(grid_Ndims(1)*mpi_dims(1)/2))*dr
-            this%A_vec(2) = (j_max - int(grid_Ndims(2)*mpi_dims(2)/2))*dr
-        else if (phi > 270.0_dp .and. phi <= 360.0_dp) then
-            this%A_vec(1) = (i_min - int(grid_Ndims(1)*mpi_dims(1)/2))*dr
-            this%A_vec(2) = (j_max - int(grid_Ndims(2)*mpi_dims(2)/2))*dr
-        end if
-        
     case (3)
-        dr_1D = dr * SQRT( DCOS(this%theta)**4 + &
-                           DSIN(this%theta)**4 * (DCOS(this%phi)**4 + DSIN(this%phi)**4) )
 
         this%v_vec =  (/DCOS(this%phi)*DSIN(this%theta), &
                        DSIN(this%phi)*DSIN(this%theta), &
                        DCOS(this%theta)/)
 
-        this%A_vec = 0.0d0
-
-        if (phi >= 0.0_dp .and. phi <= 90.0_dp) then
-            this%A_vec(1) = (i_min - int(grid_Ndims(1)*mpi_dims(1)/2))*dr
-            this%A_vec(2) = (j_min - int(grid_Ndims(2)*mpi_dims(2)/2))*dr
-        else if (phi > 90.0_dp .and. phi <= 180.0_dp) then
-            this%A_vec(1) = (i_max - int(grid_Ndims(1)*mpi_dims(1)/2))*dr
-            this%A_vec(2) = (j_min - int(grid_Ndims(2)*mpi_dims(2)/2))*dr
-        else if (phi > 180.0_dp .and. phi <= 270.0_dp) then
-            this%A_vec(1) = (i_max - int(grid_Ndims(1)*mpi_dims(1)/2))*dr
-            this%A_vec(2) = (j_max - int(grid_Ndims(2)*mpi_dims(2)/2))*dr
-        else if (phi > 270.0_dp .and. phi <= 360.0_dp) then
-            this%A_vec(1) = (i_min - int(grid_Ndims(1)*mpi_dims(1)/2))*dr
-            this%A_vec(2) = (j_max - int(grid_Ndims(2)*mpi_dims(2)/2))*dr
-        end if
-
-        if (theta >= 0.0_dp .and. theta <= 90.0_dp) then
-            this%A_vec(3) = (k_min - int(grid_Ndims(3)*mpi_dims(3)/2))*dr
-        else if (theta > 90.0_dp .and. theta <= 180.0_dp) then
-            this%A_vec(3) = (k_max - int(grid_Ndims(3)*mpi_dims(3)/2))*dr
-        end if
-
     end select 
-
-    !Estimating the number of points of the auxiliary 1D grid. We consider two-times more points
-    !than the maximum distance that the plane wave can propagate in the simulation box. 
-
-    aux_grid_Ndim    = 0
-    aux_grid_Ndim(1) = int(2*SQRT((x_max-x_min)**2 + (y_max-y_min)**2 + (z_max-z_min)**2)/dr_1D)
-
-    !TO-DO: the next vector is used to force the 1D case to run in in every rank, but it should
-    !be changed in the future to be more general.
-    aux_vec_mpi_coords = (/0, 0, 0/)
-
-
-    aux_boundaries = (/CPML_BOUNDARIES, CLOSE_BOUNDARIES, CLOSE_BOUNDARIES/)
-    
-    call this%mxll_inc_Re%init(grid_Ndims = aux_grid_Ndim, npml=20, boundaries=aux_boundaries, &
-                            dt = dt, dr = dr_1D, mode = AUX_GRID_MODE, n_media = 0, &
-                            mpi_coords = aux_vec_mpi_coords, mpi_dims = mpi_dims)
-
-    call this%mxll_inc_Im%init(grid_Ndims = aux_grid_Ndim, npml=20, boundaries=aux_boundaries, &
-                            dt = dt, dr = dr_1D, mode = AUX_GRID_MODE, n_media = 0, &
-                            mpi_coords = aux_vec_mpi_coords, mpi_dims = mpi_dims)
 
 end subroutine init_gaussbeam_src
 
@@ -1048,79 +961,56 @@ subroutine kill_gaussbeam_src(this)
 
     class(TGaussbeamSrc), intent(inout) :: this
 
-    call this%mxll_inc_Re%kill()
-    call this%mxll_inc_Im%kill()
+    !Currently, there are no dynamic resources to free.
 
 end subroutine kill_gaussbeam_src
 !###################################################################################################
 
-subroutine propagate_gaussbeam_src(this, time)
-
-    class(TGaussbeamSrc), intent(inout) :: this
-    real(dp)            , intent(in)    :: time
-
-    complex(dp) :: E_t
-    real(dp)    :: envelope
-    real(dp)    :: cos_t
-    real(dp)    :: sin_t
-
-    if (time >= this%t_init .and. time <= this%t_final) then
-
-        if (time - this%t_init < this%tau) then
-            envelope = 0.5_dp*(1.0_dp - DCOS(pi0/this%tau*(time - this%t_init)))
-        else if (this%t_final - time < this%tau) then
-            envelope = 0.5_dp*(1.0_dp - DCOS(pi0/this%tau*(this%t_final - time)))
-        else
-            envelope = 1.0_dp
-        end if
-
-        cos_t   = this%E_amp * envelope * DCOS(this%freq*(time - this%t0) + this%phase)
-        sin_t   = this%E_amp * envelope * DSIN(this%freq*(time - this%t0) + this%phase)
-
-        call this%mxll_inc_Re%td_propagate_H_field()
-        this%mxll_inc_Re%Ex(1) = this%E_amp * envelope * cos_t
-        call this%mxll_inc_Re%td_propagate_E_field(0)
-        
-        call this%mxll_inc_Im%td_propagate_H_field()
-        this%mxll_inc_Im%Ex(1) = this%E_amp * envelope * sin_t
-        call this%mxll_inc_Im%td_propagate_E_field(0)
-
-    else
-        
-        call this%mxll_inc_Re%td_propagate_H_field()
-        this%mxll_inc_Re%Ex(1) = 0.0d0
-        call this%mxll_inc_Re%td_propagate_E_field(0)
-        
-        call this%mxll_inc_Im%td_propagate_H_field()
-        this%mxll_inc_Im%Ex(1) = 0.0d0
-        call this%mxll_inc_Im%td_propagate_E_field(0)
-        
-    end if
-
-end subroutine propagate_gaussbeam_src
-
-!###################################################################################################
-
-subroutine compute_spatial_profile(this, r, z)
+subroutine compute_time_space_profile(this, r, z, time)
 
     class(TGaussbeamSrc), intent(inout) :: this
     real(dp)            , intent(in)    :: r
     real(dp)            , intent(in)    :: z
+    real(dp)            , intent(in)    :: time
 
+    complex(dp) :: E_t
+    complex(dp) :: E_rz
+    real(dp)    :: envelope
+    real(dp)    :: cos_t
+    real(dp)    :: sin_t
+    real(dp)    :: z_ramp
+    real(dp)    :: z0_ramp
+    real(dp)    :: z_min
+    real(dp)    :: z_max
+    real(dp)    :: dz_ramp
     real(dp) :: w_z
     real(dp) :: inv_R_z
     real(dp) :: psi_z
+
+    z0_ramp = this%z0_ramp
+    dz_ramp = this%dz_ramp
+
+    z_ramp = time*c0 + z0_ramp
+
+    z_min = z_ramp - 0.5_dp*dz_ramp
+    z_max = z_ramp + 0.5_dp*dz_ramp
+
+
+    envelope = EXP(-(z-z_ramp)**2/(2*dz_ramp**2))
+
+    E_t   = this%E_amp * envelope * (DCOS(this%freq*(time)) + Z_I*DSIN(this%freq*(time)))
 
     w_z   = this%w0*SQRT(1.0d0 + (z/this%z_R)**2)
     inv_R_z = z/(z**2 + this%z_R**2)
     psi_z = ATAN(z/this%z_R)
 
-    this%E_rz = (this%w0/w_z)*EXP(-r**2/w_z**2)*(DCOS((this%k*r**2)*(0.5d0*inv_R_z)-psi_z) - &
-                                                 Z_I*DSIN((this%k*r**2)*(0.5d0*inv_R_z)-psi_z))
+    E_rz = (this%w0/w_z)*EXP(-r**2/w_z**2)*(DCOS(this%k*z + (this%k*r**2)*(0.5d0*inv_R_z)-psi_z) &
+                                      - Z_I*DSIN(this%k*z + (this%k*r**2)*(0.5d0*inv_R_z)-psi_z))
 
-    !The term k*z is ignored, since it is already included in the plane wave part.
+    this%E_rzt = E_t * E_rz
 
-end subroutine compute_spatial_profile
+end subroutine compute_time_space_profile
+
 
 !###################################################################################################
 !######################################GENERAL SUBS#################################################

@@ -65,7 +65,7 @@ subroutine read_input_file(boundaries, mode_2D, dimensions, npml, grid_Ndims, &
     integer :: ierr, funit
     integer :: i 
 
-    namelist /OMxRTA/ mxll_boundaries, mxll_2D_mode, mxll_dimensions, mxll_npml, &
+    namelist /MARADO/ mxll_boundaries, mxll_2D_mode, mxll_dimensions, mxll_npml, &
                          mxll_box_size, mxll_total_time, mxll_dr, mxll_dt, &
                          mxll_density_factor, mxll_eps_r, mxll_n_media, mxll_n_q_groups, &
                          mxll_dt_q, mpi_procs_per_axis, mxll_n_detectors, mxll_dt_det_print, &
@@ -82,7 +82,7 @@ subroutine read_input_file(boundaries, mode_2D, dimensions, npml, grid_Ndims, &
     
     ! Open and read Namelist file.
     open (action='read', file="inp", iostat=ierr, newunit=funit)
-    read (nml=OMxRTA, iostat=ierr, unit=funit)
+    read (nml=MARADO, iostat=ierr, unit=funit)
     if (ierr /= 0) write (*, '("Error: invalid Namelist format")')
     
     close (funit)

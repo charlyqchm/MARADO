@@ -48,7 +48,7 @@ MAIN_FILE := mxim_mxll.f90
 OBJ := $(addprefix $(OBJ_DIR)/,$(SRC_FILES:.f90=.o))
 OBJ += $(OBJ_DIR)/$(MAIN_FILE:.f90=.o)
 
-EXE_NAME ?= OMxRTA.e
+EXE_NAME ?= MARADO.e
 EXE := $(BIN_DIR)/$(EXE_NAME)
 
 .PHONY: all mpi debug mpi_debug clean

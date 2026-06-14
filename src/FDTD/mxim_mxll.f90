@@ -103,7 +103,6 @@ program mxim_mxll
         end if
        
         call sources%propagate_p_srcs(time)
-        ! call sources%propagate_pw_srcs(time)
 
         call exchange_E_field_between_ranks(mxll)
 
@@ -113,7 +112,6 @@ program mxim_mxll
         call mxll%td_propagate_H_field()   
        
         call sources%propagate_pw_srcs(time)
-        call sources%propagate_gaussbeam_srcs(time)
 
         call exchange_H_field_between_ranks(mxll)
       

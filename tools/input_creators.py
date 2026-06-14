@@ -33,7 +33,7 @@ def inp_file(mxll_dimensions=None, mxll_boundaries=None, mxll_npml=None,
 
     inp_file = open("inp", "w")
 
-    inp_file.write("&OMxRTA\n")
+    inp_file.write("&MARADO\n")
 
     if mxll_dimensions is not None:
         inp_file.write("mxll_dimensions = "+str(int(mxll_dimensions))+"\n")
