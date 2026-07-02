@@ -61,7 +61,7 @@ program mxim_mxll
 
     if (.not. allocated(q_groups)) allocate(q_groups(n_q_groups))
 
-    call sources%read_init_sources(dimensions, dt, dr, grid_Ndims, mpi_coords, mpi_dims)
+    call sources%read_init_sources(dimensions, mode_2D, dt, dr, grid_Ndims, mpi_coords, mpi_dims)
 
     call mxll%init(grid_Ndims, npml, boundaries, dt, dr, mode_2D, n_media, mpi_coords, mpi_dims) 
     
@@ -105,21 +105,22 @@ program mxim_mxll
         call sources%propagate_p_srcs(time)
 
         call exchange_E_field_between_ranks(mxll)
-
+        
         call plane_waves_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
-        call gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time-0.5d0*dt)
-
+        
         call mxll%td_propagate_H_field()   
-       
+        
         call sources%propagate_pw_srcs(time)
-
+        
         call exchange_H_field_between_ranks(mxll)
-      
+        
         call plane_waves_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
-        call gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
         call point_source_interactions(mxll, sources)
-
+        
+        
         call mxll%td_propagate_E_field(tt)
+        
+        call gaussbeam_interactions(mxll, sources, mpi_coords, mpi_dims, time)
         
         call expand_E_field_between_ranks(mxll, move_q_system)
         

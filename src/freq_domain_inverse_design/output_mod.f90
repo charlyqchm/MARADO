@@ -79,7 +79,7 @@ subroutine init_output(this, print_restart, print_field_list, myrank)
 
         open(unit=this%unit_general_output, file=this%output_file, status='replace', action='write')
 
-        write(this%unit_general_output, '(a)') '# iter_step  FOM             delta_rho &
+        write(this%unit_general_output, '(a)') '# iter_step  FOM        &
                                             &        beta            |grad_max|'
 
         if (this%print_restart) then
@@ -104,19 +104,18 @@ end subroutine init_output
 
 !###################################################################################################
 
-subroutine write_gral_output(this, iter_step, fom, delta_rho, beta, grad_max, myrank)
+subroutine write_gral_output(this, iter_step, fom, beta, grad_max, myrank)
 
     class(TOutput), intent(inout) :: this
     integer, intent(in)  :: iter_step
     integer, intent(in)  :: myrank
     real(dp), intent(in) :: fom
-    real(dp), intent(in) :: delta_rho
     real(dp), intent(in) :: beta
     real(dp), intent(in) :: grad_max
 
     if (myrank == 0) then
 
-        write(this%unit_general_output, *) iter_step, fom, delta_rho, beta, grad_max
+        write(this%unit_general_output, *) iter_step, fom, beta, grad_max
 
     end if
 

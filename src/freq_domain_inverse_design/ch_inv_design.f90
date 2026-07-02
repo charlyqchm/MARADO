@@ -23,9 +23,9 @@ program ch_inv_design
     logical         :: print_restart
     logical         :: converge_optimization
     logical         :: iterate_optimization
-    logical         :: change_delta_rho
     logical         :: converged_forward
     logical         :: converged_adjoint
+    logical         :: apply_grad_rho_init
     
     integer         :: grid_Ndims(3)
     integer         :: max_iter_steps
@@ -44,28 +44,32 @@ program ch_inv_design
     integer         :: unit_restart = 300
     integer         :: iter_step
     integer         :: n_beta_steps
-    integer         :: n_delta_rho_steps
     integer         :: n_accuracy_der
     integer         :: i, j, k, p
-    
+    integer         :: lbfgsb_m_opt
+    integer         :: lbfgsb_iprint
+    integer         :: restart_freq
+
     real(dp)        :: fom, fom_old
     real(dp)        :: dr
     real(dp)        :: freq_list(100)
     real(dp)        :: eps_Re(100)
     real(dp)        :: eps_Im(100)
-    real(dp)        :: delta_rho(50)
+    real(dp)        :: delta_rho
     real(dp)        :: beta(50)
     real(dp)        :: eta
     real(dp)        :: rho_init
     real(dp)        :: sigma_rho
     real(dp)        :: bicgstab_tol
-
+    real(dp)        :: lbfgsb_factr
+    real(dp)        :: lbfgsb_pgtol
 
     call read_input_file(boundaries, restart, converge_optimization, n_opt_problems,        &
                          max_iter_steps, dimensions, n_pml, grid_Ndims, dr, freq_list,      &
                          eps_Re, eps_Im, delta_rho, beta, eta, rho_init, sigma_rho, mpi_dims, &
-                         n_delta_rho_steps, n_beta_steps, n_accuracy_der, bicgstab_max_iter, bicgstab_L_term,    &
-                         bicgstab_tol, print_field_list, print_restart)
+                         n_beta_steps, n_accuracy_der, bicgstab_max_iter, bicgstab_L_term,    &
+                         bicgstab_tol, lbfgsb_m_opt, lbfgsb_iprint, lbfgsb_factr, lbfgsb_pgtol, &
+                         print_field_list, print_restart, restart_freq, apply_grad_rho_init)
 
     mpi_nprocs = mpi_dims(1) * mpi_dims(2) * mpi_dims(3)
 
@@ -87,11 +91,14 @@ program ch_inv_design
 
     design = design_factory(dimensions)
 
-    call design%init_design(dimensions, dr, sigma_rho, grid_Ndims)
+    call design%init_design(dimensions, dr, sigma_rho, grid_Ndims, apply_grad_rho_init, delta_rho)
 
     do i = 1, n_opt_problems
         call design%collect_opt_regions(opt_problems(i)%opt_region, rho_init)
     end do
+
+    call design%set_opt_algo(m_opt=lbfgsb_m_opt, iprint=lbfgsb_iprint, &
+                             factr=lbfgsb_factr, pgtol=lbfgsb_pgtol)
 
     call extend_rho_to_ranks(design)
     call extend_opt_region_to_ranks(design)
@@ -145,123 +152,99 @@ program ch_inv_design
     fom     = design%fom**2
     fom_old = fom
 
-    call output%write_gral_output(0, fom, 0.0_dp, beta(1), design%grad_max, myrank)
+    call output%write_gral_output(0, fom, beta(1), design%grad_max, myrank)
 
-    iterate_optimization = .true.
+    design%continue_opt = .true.
     iter_step = 1
     k = 1
     !Init optimization loop. --------------------------------------------------!
-    do while(iterate_optimization .and. iter_step <= max_iter_steps)
+    do while(design%continue_opt .and. iter_step <= max_iter_steps)
         
-        !Calculate the gradient ---------------------------------------!
-        do p = 1, n_opt_problems
-            opt_problems(p)%beta_rho = beta(k)
-            call opt_problems(p)%compute_gradient(design)
-            call design%collect_gradients(opt_problems(p)%grad, &
-            p, n_opt_problems)
-        end do
-        
-        call extend_grad_to_ranks(design)
-
-        call design%apply_kernel_on_grad()
+        if (design%new_rho_set) then
+            !Calculate the gradient ---------------------------------------!
+            do p = 1, n_opt_problems
+                opt_problems(p)%beta_rho = beta(k)
+                call opt_problems(p)%compute_gradient(design)
+                call design%collect_gradients(opt_problems(p)%grad, &
+                                              p, n_opt_problems)
+                call extend_grad_to_ranks(design)
+                call design%apply_kernel_on_grad()
+            end do
+        end if
         !--------------------------------------------------------------!
+       
+        call design%opt_step()
         
-        j = 1
-        design%drho = delta_rho(j)
-        change_delta_rho = .true.
-        do while(change_delta_rho)
-          
-            call design%displace_rho()
+        if (design%new_rho_set) then
 
             call extend_rho_to_ranks(design)
 
             call design%apply_kernel_on_rho()
 
             do p = 1, n_opt_problems
-                
-                call opt_problems(p)%update_permittivity(design)
+                    
+                    call opt_problems(p)%update_permittivity(design)
 
-                call opt_problems(p)%solve_forward(bicgstab_tol, bicgstab_max_iter, bicgstab_L_term, &
-                                                   delta_rho(j), iter_step, converged_forward)
-                
-                call opt_problems(p)%update_targets()
+                    call opt_problems(p)%solve_forward(bicgstab_tol, bicgstab_max_iter, bicgstab_L_term, &
+                                                    delta_rho, iter_step, converged_forward)
+                    
+                    call opt_problems(p)%update_targets()
 
-                call design%collect_FOM(opt_problems(p)%w_total, p, n_opt_problems)                                   
+                    call design%collect_FOM(opt_problems(p)%w_total, p, n_opt_problems)
             end do
 
-            fom = design%fom**2
+        end if
 
-            if (converge_optimization) then
-                change_delta_rho = (fom < fom_old) .or. (.not. converged_forward)
+
+        if (design%change_beta) then
+
+            k = k + 1
+
+            if (k > n_beta_steps) then
+
+                design%continue_opt = .false.
+            
             else
-                change_delta_rho = .not. converged_forward
-            end if
 
-            if (change_delta_rho .and. converge_optimization)then
-                j = j + 1
-                design%drho = delta_rho(j)
-            end if
-
-            !At this point we have used all the elements of delta_rho.
-            !Since the FOM is not maximized, we change beta from the
-            !binary function.
-            if (j == n_delta_rho_steps .and. converge_optimization) then
-                change_delta_rho = .false.
-                design%drho = 0.0d0
-
-                do p = 1, n_opt_problems
-
-                    call output%write_restart(opt_problems(p)%f_vec, &
-                        opt_problems(p)%f_adj_vec, opt_problems(p)%n_trg, &
-                        design, p, mpi_dims, mpi_coords, beta(k))
-
-                end do
-
-                k = k + 1
                 do p = 1, n_opt_problems
                     opt_problems(p)%beta_rho = beta(k)
                 end do
 
-                if (k > n_beta_steps) then
-                    iterate_optimization = .false.
-                else
+                call design%reset_rho_one_step_back()
 
-                    call design%reset_rho_one_step_back()
+                call extend_rho_to_ranks(design)
 
-                    call extend_rho_to_ranks(design)
+                call design%reset_grad()
 
-                    call design%reset_grad()
+                call extend_grad_to_ranks(design)
 
-                    call extend_grad_to_ranks(design)
+                call design%apply_kernel_on_rho()
+                do p = 1, n_opt_problems
 
-                    call design%apply_kernel_on_rho()
-                    do p = 1, n_opt_problems
+                    call opt_problems(p)%update_permittivity(design)
 
-                        call opt_problems(p)%update_permittivity(design)
-
-                        call opt_problems(p)%solve_forward(bicgstab_tol, bicgstab_max_iter, &
-                                                           bicgstab_L_term, delta_rho(j),   &
-                                                           iter_step, converged_forward)
-                    
-                        call opt_problems(p)%update_targets()
-                    end do
-                end if
-
-            else if (.not. converge_optimization .and. change_delta_rho) then
-                iterate_optimization = .false.
-                change_delta_rho     = .false.
+                    call opt_problems(p)%solve_forward(bicgstab_tol, bicgstab_max_iter, &
+                                                        bicgstab_L_term, delta_rho,   &
+                                                        iter_step, converged_forward)
+                
+                    call opt_problems(p)%update_targets()
+                end do
             end if
+        end if
 
-        end do
 
-        do p = 1, n_opt_problems
+        if (design%new_rho_set) then
 
-            call opt_problems(p)%solve_adjoint(bicgstab_tol, bicgstab_max_iter, bicgstab_L_term, &
-                                               0.0_dp, iter_step, converged_adjoint)
+            do p = 1, n_opt_problems
 
-            call design%collect_FOM(opt_problems(p)%w_total, p, n_opt_problems)
+                call opt_problems(p)%solve_adjoint(bicgstab_tol, bicgstab_max_iter, bicgstab_L_term, &
+                                                    0.0_dp, iter_step, converged_adjoint)
 
-        end do
+                call design%collect_FOM(opt_problems(p)%w_total, p, n_opt_problems)
+
+            end do
+
+        end if
 
         fom = design%fom**2
 
@@ -275,12 +258,19 @@ program ch_inv_design
             call design%update_rho()
             fom_old = fom
 
-            call output%write_gral_output(iter_step, fom, delta_rho(j), beta(k), &
+            call output%write_gral_output(iter_step, fom, beta(k), &
                                           design%grad_max, myrank)
 
-        end if
+            iter_step = iter_step + 1
 
-        iter_step = iter_step + 1
+            if (print_restart .and. (mod(iter_step, restart_freq) == 0)) then
+                do p = 1, n_opt_problems
+                    call output%write_restart(opt_problems(p)%f_vec, opt_problems(p)%f_adj_vec, &
+                                              opt_problems(p)%n_trg, design, p, mpi_dims, mpi_coords, beta(k))
+                end do
+            end if
+
+        end if
 
     end do
     ! End of optimization loop. --------------------------------------------------!

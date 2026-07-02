@@ -529,7 +529,11 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
                 do i=1, nx
                     if (media_map(i,j,1) == n ) then
                         eps_x(i,j) = 1.0d0/media(n)%eps_r
+                    end if
+                    if (media_map(i,j,2) == n ) then
                         eps_y(i,j) = 1.0d0/media(n)%eps_r
+                    end if
+                    if (media_map(i,j,3) == n ) then
                         eps_z(i,j) = 1.0d0/media(n)%eps_r
                     end if
                 end do
@@ -802,6 +806,11 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
             Ei   = tmpE
 
         case(DL_MEDIUM)
+
+            do i=1, media(idx)%n_poles
+                PLi_old(i) = PLi(i)
+            end do
+
             tmpE = media(idx)%C1 * Ei + media(idx)%C2 * Ei_old + media(idx)%C3 * rotH &
                    - media(idx)%C4 * PDi
 
@@ -820,7 +829,6 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
             Ei_old = Ei
             
             do i=1, media(idx)%n_poles
-                PLi_old(i) = PLi(i)
                 PLi(i)     = tmpPL(i)
             end do
             
@@ -832,6 +840,43 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
 
     end subroutine get_medium_polarization
 
+!###################################################################################################
+    subroutine modify_polarization(media, idx, PDi, PLi, E1, E0)
+
+    
+        !If there is no medium, media is not allocated and idx=0 always.
+        !TO-DO: improve this condition.
+        type(TClassicalMedium), allocatable, intent(in) :: media(:)
+        integer               , intent(in)    :: idx
+        real(dp)              , intent(inout) :: PDi
+        real(dp)              , intent(inout) :: PLi(:)
+        real(dp)              , intent(inout) :: E1
+        real(dp)              , intent(inout) :: E0
+        
+        integer  :: i
+
+        if (idx==0) then
+            return
+        end if
+
+        select case (media(idx)%medium_type)
+
+        case(DRUDE_MEDIUM)
+            PDi  = PDi + media(idx)%A2 * (E1 + E0)
+
+        case(DL_MEDIUM)
+
+            PDi  = PDi + media(idx)%A2 * (E1 + E0)
+            !This requires the electric field from one step before.
+            do i= 1, media(idx)%n_poles
+                PLi(i) = PLi(i) + media(idx)%gamma_k(i) * (E1 - E0)
+            end do
+
+        case default
+            !Dielectric case, include currents
+        end select            
+
+    end subroutine modify_polarization
 !###################################################################################################
 
 end module classical_medium_mod

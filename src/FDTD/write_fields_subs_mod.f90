@@ -279,19 +279,20 @@ end subroutine write_2D_headers
 subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                           dr, grid_Ndims, mpi_dims, mpi_coords, myrank)
 
-    type(TDetector) , intent(in) :: detectors(n_detectors)
-    class(TMxll_2D) , intent(in) :: mxll
-    integer         , intent(in) :: n_detectors
-    integer         , intent(in) :: print_det_step
-    integer         , intent(in) :: myrank
-    integer         , intent(in) :: grid_Ndims(3)
-    integer         , intent(in) :: mpi_dims(3)
-    integer         , intent(in) :: mpi_coords(3)
-    real(dp)        , intent(in) :: dr
-    real(dp)        , intent(in) :: time
+    type(TDetector)     , intent(in)    :: detectors(n_detectors)
+    class(TMxll_2D)     , intent(in)    :: mxll
+    integer             , intent(in)    :: n_detectors
+    integer             , intent(in)    :: print_det_step
+    integer             , intent(in)    :: myrank
+    integer             , intent(in)    :: grid_Ndims(3)
+    integer             , intent(in)    :: mpi_dims(3)
+    integer             , intent(in)    :: mpi_coords(3)
+    real(dp)            , intent(in)    :: dr
+    real(dp)            , intent(in)    :: time
 
     integer  :: n
     integer  :: i
+    integer  :: s
     integer  :: i_ndx, j_ndx
     integer  :: nx, ny
     integer  :: nx_tot, ny_tot
@@ -563,6 +564,7 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                 do n = 1, detectors(i)%nd
                     i_ndx = detectors(i)%indx_list(n,1)
                     j_ndx = detectors(i)%indx_list(n,2)
+
                     x    = (i_ndx+nx*mpi_coords(1))*dr - int(nx_tot/2)*dr
                     y    = (j_ndx+ny*mpi_coords(2))*dr - int(ny_tot/2)*dr
                     x    = x*au_to_nm

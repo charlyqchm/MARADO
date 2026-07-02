@@ -193,18 +193,18 @@ end subroutine kill_detectors_outputs
 subroutine write_detectors_outputs(detectors, mxll, n_detectors, t_step, print_det_step, &
                                    t_det_print, time, dr, grid_Ndims, mpi_dims, mpi_coords, myrank)
 
-    type(TDetector), intent(in)    :: detectors(n_detectors)
-    class(TMxll)   , intent(in)    :: mxll
-    integer        , intent(in)    :: n_detectors
-    integer        , intent(inout) :: print_det_step
-    integer        , intent(in)    :: t_step
-    integer        , intent(in)    :: myrank
-    integer        , intent(in)    :: grid_Ndims(3)
-    integer        , intent(in)    :: mpi_dims(3)
-    integer        , intent(in)    :: mpi_coords(3)
-    integer        , intent(in)    :: t_det_print
-    real(dp)       , intent(in)    :: dr
-    real(dp)       , intent(in)    :: time
+    type(TDetector)    , intent(in)    :: detectors(n_detectors)
+    class(TMxll)       , intent(in)    :: mxll
+    integer            , intent(in)    :: n_detectors
+    integer            , intent(inout) :: print_det_step
+    integer            , intent(in)    :: t_step
+    integer            , intent(in)    :: myrank
+    integer            , intent(in)    :: grid_Ndims(3)
+    integer            , intent(in)    :: mpi_dims(3)
+    integer            , intent(in)    :: mpi_coords(3)
+    integer            , intent(in)    :: t_det_print
+    real(dp)           , intent(in)    :: dr
+    real(dp)           , intent(in)    :: time
 
     if (MOD(t_step, t_det_print) /= 0) return
     if (n_detectors == 0) return
