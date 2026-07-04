@@ -64,6 +64,7 @@ subroutine init_2D_design(this, dimensions, dr, sigma, grid_Ndims, apply_grad_rh
         this%n_ker = 0
     else
         this%n_ker = int(3.0_dp*sigma/dr)
+        this%sigma = sigma
     end if
 
     nx    = this%nx
@@ -105,6 +106,7 @@ subroutine init_2D_design(this, dimensions, dr, sigma, grid_Ndims, apply_grad_rh
     this%continue_opt  = .true.
     this%new_rho_set   = .true.
     this%change_beta   = .false.
+    this%first_iter    = .true.
 
 end subroutine init_2D_design
 
@@ -222,7 +224,7 @@ subroutine collect_2D_gradients(this, grad_in, p, n_opt_problems)
                                            grad_in(1:this%nx,1:this%ny,1)
 
     if (p == n_opt_problems) then
-        this%grad = 2.0_dp * this%fom * this%grad
+        this%grad = -2.0_dp * this%fom * this%grad
     end if
 
 end subroutine collect_2D_gradients
@@ -343,6 +345,7 @@ subroutine opt_step_2D(this)
 
         end if
     end if
+
 
 end subroutine opt_step_2D
 

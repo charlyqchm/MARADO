@@ -123,24 +123,24 @@ subroutine init_optprblm(this, id,dimensions, dr, freq, eps_Re, eps_Im, eta, bou
     this%j_src     = rs_vec_factory(dimensions)
     this%j_trg     = rs_vec_factory(dimensions)
 
+    
     call this%f_vec%init(grid_Ndims, dr, dimensions, freq, n_der)
+    
+    
     call this%f_vec_new%init(grid_Ndims, dr, dimensions, freq, n_der)
     call this%Af_vec%init(grid_Ndims, dr, dimensions, freq, n_der)
     call this%j_src%init(grid_Ndims, dr, dimensions, freq, n_der)
     call this%j_trg%init(grid_Ndims, dr, dimensions, freq, n_der)
-
     call this%A_op%init_operator(dr, freq, dimensions, grid_Ndims, n_pml, n_der, &
                                  boundaries, mpi_dims, mpi_coords)
 
     call allocate_multidim(array = this%opt_region, dim = dimensions, i_max = this%nx, &
                            j_max = this%ny, k_max = this%nz)
-
     call allocate_multidim(array = this%grad, dim = dimensions, i_max = this%nx, &
                            j_max = this%ny, k_max = this%nz)
-
     call allocate_multidim(array = this%dA, dim = dimensions, i_max = this%nx, &
                            j_max = this%ny, k_max = this%nz)
-
+    
     this%opt_region = .false.
     this%grad = 0.0_dp
     this%dA   = Z_0
@@ -161,9 +161,13 @@ subroutine init_optprblm(this, id,dimensions, dr, freq, eps_Re, eps_Im, eta, bou
     if (allocated(this%f_adj_vec))     deallocate(this%f_adj_vec)
     if (allocated(this%f_adj_vec_new)) deallocate(this%f_adj_vec_new)
 
-    allocate(this%f_adj_vec, source=rs_vec_factory_array(dim=dimensions, n_max=this%n_trg))
-    allocate(this%f_adj_vec_new, source=rs_vec_factory_array(dim=dimensions, n_max=this%n_trg))
+   
+    this%f_adj_vec = rs_vec_factory_array(dim=dimensions, n_max=this%n_trg)
+    this%f_adj_vec_new = rs_vec_factory_array(dim=dimensions, n_max=this%n_trg)
 
+    ! allocate(this%f_adj_vec, source=rs_vec_factory_array(dim=dimensions, n_max=this%n_trg))
+    ! allocate(this%f_adj_vec_new, source=rs_vec_factory_array(dim=dimensions, n_max=this%n_trg))
+    
     do i =1, this%n_trg
         call this%f_adj_vec(i)%init(grid_Ndims, dr, dimensions, freq, n_der)
         call this%f_adj_vec_new(i)%init(grid_Ndims, dr, dimensions, freq, n_der)
