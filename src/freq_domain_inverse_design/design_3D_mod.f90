@@ -28,6 +28,7 @@ module design_3D_mod
             procedure :: collect_gradients       => collect_3D_gradients
             procedure :: apply_kernel_on_rho     => apply_kernel_on_rho_3D
             procedure :: apply_kernel_on_grad    => apply_kernel_on_grad_3D
+            procedure :: calculate_grad_max      => calculate_grad_max_3D
             procedure :: opt_step                => opt_step_3D
             procedure :: reset_rho_one_step_back => reset_rho_one_step_back_3D
             procedure :: reset_grad              => reset_grad_3D
@@ -158,9 +159,6 @@ subroutine collect_3D_opt_regions(this, opt_region_i, rho_init)
             this%opt_region(i, j, k) = .true.
             call random_number(x)
             this%rho(i, j, k) = rho_init + 0.001_dp * x !Random perturbation
-        else
-            this%opt_region(i, j, k) = .false.
-            this%rho(i, j, k) = 0.0_dp
         end if
     end do
     end do
@@ -304,6 +302,18 @@ subroutine apply_kernel_on_grad_3D(this)
     end do
 
 end subroutine apply_kernel_on_grad_3D
+
+!###################################################################################################
+
+subroutine calculate_grad_max_3D(this)
+
+    class(TDesign_3D), intent(inout) :: this
+
+    this%grad_max = MAXVAL(ABS(this%grad_conv))
+
+    !Missing MPI part.
+
+end subroutine calculate_grad_max_3D
 
 !###################################################################################################
 

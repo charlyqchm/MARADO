@@ -25,6 +25,7 @@ module design_1D_mod
             procedure :: collect_gradients       => collect_1D_gradients
             procedure :: apply_kernel_on_rho     => apply_kernel_on_rho_1D
             procedure :: apply_kernel_on_grad    => apply_kernel_on_grad_1D
+            procedure :: calculate_grad_max      => calculate_grad_max_1D
             procedure :: opt_step                => opt_step_1D
             procedure :: reset_rho_one_step_back => reset_rho_one_step_back_1D
             procedure :: reset_grad              => reset_grad_1D
@@ -142,9 +143,6 @@ subroutine collect_1D_opt_regions(this, opt_region_i, rho_init)
             this%opt_region(i) = .true.
             call random_number(x)
             this%rho(i) = rho_init + 0.001_dp * x !Random perturbation
-        else
-            this%opt_region(i) = .false.
-            this%rho(i) = 0.0_dp
         end if
     end do
 
@@ -257,6 +255,17 @@ subroutine apply_kernel_on_grad_1D(this)
     end do
 
 end subroutine apply_kernel_on_grad_1D
+!###################################################################################################
+
+subroutine calculate_grad_max_1D(this)
+
+    class(TDesign_1D), intent(inout) :: this
+
+    this%grad_max = MAXVAL(ABS(this%grad_conv))
+
+    !Missing MPI part.
+
+end subroutine calculate_grad_max_1D
 
 !###################################################################################################
 

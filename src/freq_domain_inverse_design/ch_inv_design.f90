@@ -169,6 +169,9 @@ program ch_inv_design
                                               p, n_opt_problems)
                 call extend_grad_to_ranks(design)
                 call design%apply_kernel_on_grad()
+                
+                call design%calculate_grad_max()
+
             end do
         end if
         !--------------------------------------------------------------!

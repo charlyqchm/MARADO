@@ -33,6 +33,7 @@ module design_base_mod
         procedure(collect_gradients_interface)       ,deferred :: collect_gradients
         procedure(apply_kernel_on_rho_interface)     ,deferred :: apply_kernel_on_rho
         procedure(apply_kernel_on_grad_interface)    ,deferred :: apply_kernel_on_grad
+        procedure(calculate_grad_max_interface)      ,deferred :: calculate_grad_max
         procedure(opt_step_interface)                ,deferred :: opt_step
         procedure(reset_rho_one_step_back_interface) ,deferred :: reset_rho_one_step_back
         procedure(reset_grad_interface)              ,deferred :: reset_grad
@@ -101,6 +102,11 @@ module design_base_mod
             import :: TDesign
             class(TDesign), intent(inout) :: this
         end subroutine apply_kernel_on_grad_interface
+
+        subroutine calculate_grad_max_interface(this)
+            import :: TDesign
+            class(TDesign), intent(inout) :: this
+        end subroutine calculate_grad_max_interface
 
         subroutine opt_step_interface(this)
             import :: TDesign

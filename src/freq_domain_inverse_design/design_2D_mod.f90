@@ -28,6 +28,7 @@ module design_2D_mod
             procedure :: collect_gradients       => collect_2D_gradients
             procedure :: apply_kernel_on_rho     => apply_kernel_on_rho_2D
             procedure :: apply_kernel_on_grad    => apply_kernel_on_grad_2D
+            procedure :: calculate_grad_max      => calculate_grad_max_2D
             procedure :: opt_step                => opt_step_2D
             procedure :: reset_rho_one_step_back => reset_rho_one_step_back_2D
             procedure :: reset_grad              => reset_grad_2D
@@ -148,9 +149,6 @@ subroutine collect_2D_opt_regions(this, opt_region_i, rho_init)
             this%opt_region(i, j) = .true.
             call random_number(x)
             this%rho(i, j) = rho_init + 0.001_dp * x !Random perturbation
-        else
-            this%opt_region(i, j) = .false.
-            this%rho(i, j) = 0.0_dp
         end if
     end do
     end do
@@ -282,6 +280,18 @@ subroutine apply_kernel_on_grad_2D(this)
     end do
 
 end subroutine apply_kernel_on_grad_2D
+
+!###################################################################################################
+
+subroutine calculate_grad_max_2D(this)
+
+    class(TDesign_2D), intent(inout) :: this
+
+    this%grad_max = MAXVAL(ABS(this%grad_conv))
+
+    !Missing MPI part.
+
+end subroutine calculate_grad_max_2D
 
 !###################################################################################################
 
