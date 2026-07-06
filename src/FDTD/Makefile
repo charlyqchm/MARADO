@@ -16,7 +16,15 @@ FC := $(MPI_FC)
 FFLAGS += -DUSE_MPI
 endif
 
-LIBS ?= -ldftbplus -lblas -llapack
+ifdef BLAS_DIR
+BLAS_LIBS ?= $(BLAS_DIR)/libopenblas.so
+RPATH_FLAG ?= -Wl,-rpath=$(BLAS_DIR)
+else
+BLAS_LIBS ?= -lblas -llapack
+RPATH_FLAG ?=
+endif
+
+LIBS ?= -ldftbplus $(BLAS_LIBS)
 INCLUDE_DIR ?= $(DFTB_INSTALL)/include/dftbplus/modfiles
 LIB_DIR ?= $(DFTB_INSTALL)/lib
 
@@ -62,7 +70,7 @@ $(OBJ_DIR)/%.o: %.f90 | $(OBJ_DIR) $(MOD_DIR)
 	$(FC) $(FFLAGS) -o $@ -c $< -I$(INCLUDE_DIR) -I$(MOD_DIR) -J$(MOD_DIR)
 
 $(EXE): $(OBJ) | $(BIN_DIR)
-	$(FC) -o $@ $^ $(FFLAGS) -L$(LIB_DIR) $(LIBS)
+	$(FC) $(RPATH_FLAG) -o $@ $^ $(FFLAGS) -L$(LIB_DIR) $(LIBS)
 
 mpi:
 	$(MAKE) USE_MPI=1

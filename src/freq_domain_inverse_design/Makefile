@@ -15,7 +15,13 @@ FC := $(MPI_FC)
 FFLAGS += -DUSE_MPI
 endif
 
+ifdef BLAS_DIR
+LIBS ?= $(BLAS_DIR)/libopenblas.so
+RPATH_FLAG ?= -Wl,-rpath=$(BLAS_DIR)
+else
 LIBS ?= -lblas -llapack
+RPATH_FLAG ?=
+endif
 
 BUILD ?= ../../build
 PROJECT ?= design
@@ -60,7 +66,7 @@ $(OBJ_DIR)/%.o: %.f90 | $(OBJ_DIR) $(MOD_DIR)
 
 
 $(EXC): $(OBJ) | $(BIN_DIR)
-	$(FC) -o $@ $^ ${FFLAGS} ${LIBS}
+	$(FC) $(RPATH_FLAG) -o $@ $^ ${FFLAGS} ${LIBS}
 
 clean:
 	rm -rf $(OBJ_DIR) $(MOD_DIR) $(EXC)
