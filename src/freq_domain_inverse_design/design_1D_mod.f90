@@ -136,13 +136,13 @@ subroutine collect_1D_opt_regions(this, opt_region_i, rho_init)
     integer  :: i
     real(dp) :: x
 
-    call random_seed()
+!    call random_seed()
 
     do i = 1, this%nx
         if (opt_region_i(i,1,1)) then
             this%opt_region(i) = .true.
-            call random_number(x)
-            this%rho(i) = rho_init + 0.001_dp * x !Random perturbation
+!            call random_number(x)
+            this%rho(i) = rho_init !+ 0.001_dp * x !Random perturbation
         end if
     end do
 
@@ -178,15 +178,18 @@ end subroutine set_1D_opt_algo
 
 !###################################################################################################
 
-subroutine collect_1D_FOM(this, w_p, p, n_opt_problems)
+subroutine collect_1D_FOM(this, w_p, fom_partial, p, n_opt_problems)
 
     class(TDesign_1D), intent(inout) :: this
     real(dp)         , intent(in)    :: w_p
+    real(dp)         , intent(in)    :: fom_partial
     integer          , intent(in)    :: p
     integer          , intent(in)    :: n_opt_problems
 
     if (p == 1) this%fom = 0.0_dp
+    if (p == 1) this%fom_print = 0.0_dp
 
+    this%fom_print = this%fom_print + fom_partial
     this%fom = this%fom + w_p
 
 end subroutine collect_1D_FOM

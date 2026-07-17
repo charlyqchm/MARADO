@@ -62,7 +62,7 @@ module input_mod
     
     !drho value used in the first step if design_apply_grad_rho_init is true in the optimization. 
     !Being rho the design variable and drho the step size of the optimization.
-    real(dp)          :: design_drho
+    real(dp)          :: design_drho = 0.0_dp
 
     !List of beta values to scan in the optimization. 
     real(dp)          :: design_beta(50)

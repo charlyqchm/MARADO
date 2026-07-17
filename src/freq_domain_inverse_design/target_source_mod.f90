@@ -534,11 +534,14 @@ end subroutine set_source_J
 
 !###################################################################################################
 
-subroutine update_target(trg, f_vec, w_dL, w_total)
+subroutine update_target(trg, f_vec, w_dL, w_0, fom_partial, w_total, set_w_0)
 
     type(TSrcTrg)  , intent(inout) :: trg
     class(TRSvec)  , intent(inout) :: f_vec
+    logical        , intent(in)    :: set_w_0
     real(dp)       , intent(inout) :: w_dL
+    real(dp)       , intent(inout) :: w_0
+    real(dp)       , intent(inout) :: fom_partial
     real(dp)       , intent(inout) :: w_total
 
     complex(dp) :: E_field
@@ -676,6 +679,14 @@ subroutine update_target(trg, f_vec, w_dL, w_total)
 #endif
 
     w_dL = w_dL_global
+
+    if (set_w_0) then
+        w_0 = w_dL
+    end if
+
+    fom_partial = fom_partial + w_dL
+
+    w_dL = w_dL / w_0
 
     w_total = w_total + w_dL
 

@@ -20,6 +20,7 @@ module design_base_mod
         logical        :: apply_grad_rho_init
         real(dp)       :: sigma
         real(dp)       :: fom
+        real(dp)       :: fom_print
         real(dp)       :: drho
         real(dp)       :: grad_max
 
@@ -77,10 +78,11 @@ module design_base_mod
             real(dp)      , intent(in)    :: pgtol
         end subroutine set_opt_algo_interface
 
-        subroutine collect_FOM_interface(this, w_p, p, n_opt_problems)
+        subroutine collect_FOM_interface(this, w_p, fom_partial, p, n_opt_problems)
             import :: TDesign, dp
             class(TDesign), intent(inout) :: this
             real(dp)      , intent(in)    :: w_p
+            real(dp)      , intent(in)    :: fom_partial
             integer       , intent(in)    :: p
             integer       , intent(in)    :: n_opt_problems
         end subroutine collect_FOM_interface

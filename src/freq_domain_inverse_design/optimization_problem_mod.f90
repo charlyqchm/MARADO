@@ -22,6 +22,7 @@ module optimization_problem_mod
     type TOptPrblm  
 
         logical             :: is_complex
+        logical             :: set_w_0
         type(TOperator)     :: A_op
         type(TMedium_eps_r) :: eps_r
         integer             :: id
@@ -41,7 +42,8 @@ module optimization_problem_mod
         real(dp)            :: eta_rho
         real(dp)            :: beta_rho
         real(dp)            :: w_total
-
+        real(dp)            :: fom_partial
+        
         class(TRSvec), allocatable :: f_vec
         class(TRSvec), allocatable :: f_vec_new
         class(TRSvec), allocatable :: f_adj_vec(:)
@@ -54,8 +56,8 @@ module optimization_problem_mod
         complex(dp)  , allocatable :: dA(:,:,:)
         real(dp)     , allocatable :: grad(:,:,:)
         real(dp)     , allocatable :: w_dL(:) ! Weigh of the objective 
+        real(dp)     , allocatable :: w_0(:) !initial weight of the objective function
                                               ! function gradient
-
     contains
 
         procedure :: init_optprblm
@@ -116,7 +118,9 @@ subroutine init_optprblm(this, id,dimensions, dr, freq, eps_Re, eps_Im, eta, bou
     else
         this%is_complex = .false.
     end if
-    
+
+    this%set_w_0 = .false.
+
     this%f_vec     = rs_vec_factory(dimensions)
     this%f_vec_new = rs_vec_factory(dimensions)
     this%Af_vec    = rs_vec_factory(dimensions)
@@ -174,6 +178,9 @@ subroutine init_optprblm(this, id,dimensions, dr, freq, eps_Re, eps_Im, eta, bou
     end do
 
     if (.not. allocated(this%w_dL)) allocate(this%w_dL(this%n_trg))
+    if (.not. allocated(this%w_0)) allocate(this%w_0(this%n_trg))
+
+    this%w_0 = 1.0d0
 
 end subroutine init_optprblm
 
@@ -195,6 +202,7 @@ subroutine kill_optprblm(this)
 
     if (allocated(this%opt_region)) deallocate(this%opt_region)
     if (allocated(this%w_dL))       deallocate(this%w_dL)
+    if (allocated(this%w_0))       deallocate(this%w_0)
     if (allocated(this%grad))      deallocate(this%grad)
     if (allocated(this%dA))         deallocate(this%dA)
     call this%eps_r%kill_medium()
@@ -746,15 +754,19 @@ subroutine update_targets(this)
     integer :: n
     integer :: n_trg
 
-    this%w_total = 0.0d0
+    this%w_total     = 0.0d0
+    this%fom_partial = 0.0d0
 
     n_trg = 1
     do n = 1, this%n_src_trg
         if (this%src_trg(n)%is_a_target) then
-            call update_target(this%src_trg(n), this%f_vec_new, this%w_dL(n_trg), this%w_total)
+            call update_target(this%src_trg(n), this%f_vec_new, this%w_dL(n_trg), &
+                               this%w_0(n_trg), this%fom_partial, this%w_total, this%set_w_0)
             n_trg = n_trg + 1
         end if
     end do
+
+    this%set_w_0 = .false.
 
 end subroutine update_targets
 

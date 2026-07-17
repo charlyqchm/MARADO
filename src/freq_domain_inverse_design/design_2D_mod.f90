@@ -141,14 +141,14 @@ subroutine collect_2D_opt_regions(this, opt_region_i, rho_init)
     integer :: i, j
     real(dp) :: x
 
-    call random_seed() 
+!    call random_seed() 
 
     do j = 1, this%ny
     do i = 1, this%nx
         if (opt_region_i(i, j, 1)) then
             this%opt_region(i, j) = .true.
-            call random_number(x)
-            this%rho(i, j) = rho_init + 0.001_dp * x !Random perturbation
+!            call random_number(x)
+            this%rho(i, j) = rho_init !+ 0.001_dp * x !Random perturbation
         end if
     end do
     end do
@@ -188,10 +188,11 @@ end subroutine set_2D_opt_algo
 
 !###################################################################################################
 
-subroutine collect_2D_FOM(this, w_p, p, n_opt_problems)
+subroutine collect_2D_FOM(this, w_p, fom_partial, p, n_opt_problems)
 
     class(TDesign_2D), intent(inout) :: this
     real(dp)         , intent(in)    :: w_p
+    real(dp)         , intent(in)    :: fom_partial
     integer          , intent(in)    :: p
     integer          , intent(in)    :: n_opt_problems
 
@@ -200,6 +201,9 @@ subroutine collect_2D_FOM(this, w_p, p, n_opt_problems)
     real(dp) :: fom_sum = 0.0_dp
 
     if (p == 1) this%fom = 0.0_dp
+    if (p == 1) this%fom_print = 0.0_dp
+
+    this%fom_print = this%fom_print + fom_partial
 
     this%fom = this%fom + w_p
 

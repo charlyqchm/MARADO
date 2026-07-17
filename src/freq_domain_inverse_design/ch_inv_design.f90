@@ -138,6 +138,7 @@ program ch_inv_design
         call opt_problems(p)%solve_forward(bicgstab_tol, bicgstab_max_iter, bicgstab_L_term, &
                                            0.0_dp, 0, converged_forward)
 
+        opt_problems(p)%set_w_0 = .true.
         call opt_problems(p)%update_targets()
 
         call opt_problems(p)%solve_adjoint(bicgstab_tol, bicgstab_max_iter, bicgstab_L_term, &
@@ -145,11 +146,12 @@ program ch_inv_design
 
         call opt_problems(p)%update_fields()
 
-        call design%collect_FOM(opt_problems(p)%w_total, p, n_opt_problems)
+        call design%collect_FOM(opt_problems(p)%w_total, opt_problems(p)%fom_partial, &
+                                p, n_opt_problems)
 
     end do
 
-    fom     = design%fom**2
+    fom     = design%fom_print**2
     fom_old = fom
 
     call output%write_gral_output(0, fom, beta(1), design%grad_max, myrank)
@@ -193,7 +195,8 @@ program ch_inv_design
                     
                     call opt_problems(p)%update_targets()
 
-                    call design%collect_FOM(opt_problems(p)%w_total, p, n_opt_problems)
+                    call design%collect_FOM(opt_problems(p)%w_total, opt_problems(p)%fom_partial, &
+                                            p, n_opt_problems)
             end do
 
         end if
@@ -229,7 +232,7 @@ program ch_inv_design
                     call opt_problems(p)%solve_forward(bicgstab_tol, bicgstab_max_iter, &
                                                         bicgstab_L_term, delta_rho,   &
                                                         iter_step, converged_forward)
-                
+                    opt_problems(p)%set_w_0 = .true.
                     call opt_problems(p)%update_targets()
                 end do
             end if
@@ -243,13 +246,14 @@ program ch_inv_design
                 call opt_problems(p)%solve_adjoint(bicgstab_tol, bicgstab_max_iter, bicgstab_L_term, &
                                                     0.0_dp, iter_step, converged_adjoint)
 
-                call design%collect_FOM(opt_problems(p)%w_total, p, n_opt_problems)
+                call design%collect_FOM(opt_problems(p)%w_total, opt_problems(p)%fom_partial, &
+                                        p, n_opt_problems)
 
             end do
 
         end if
 
-        fom = design%fom**2
+        fom = design%fom_print**2
 
         if (k <= n_beta_steps) then
 
