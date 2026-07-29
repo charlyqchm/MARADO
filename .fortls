@@ -1,9 +1,0 @@
-{
-  "source_dirs": [
-    "./**",
-    "/home/grecofra/Desktop/dftbplus/_build/src/dftbp/**"
-  ],
-  "include_dirs": [
-    "/home/grecofra/Desktop/dftbplus/_build/src/dftbp/include"
-  ]
-}
