@@ -216,13 +216,14 @@ subroutine write_detectors_outputs(detectors, mxll, n_detectors, t_step, print_d
                             grid_Ndims, mpi_dims, mpi_coords, myrank)
     class is (TMxll_2D)
 
-        call write_2D_headers(detectors, n_detectors, print_det_step, time, dr, grid_Ndims, mpi_dims, myrank)
+        call write_2D_headers(detectors, n_detectors, print_det_step, time, dr, grid_Ndims, mpi_dims, &
+                            mpi_coords, myrank)
         call write_2D_field(detectors, mxll, n_detectors, print_det_step, time, dr, &
                             grid_Ndims, mpi_dims, mpi_coords, myrank)
 
     class is (TMxll_3D)
 
-        call write_3D_headers(detectors, n_detectors, print_det_step, time, dr, grid_Ndims, mpi_dims, myrank)
+        call write_3D_headers(detectors, n_detectors, print_det_step, time, dr, grid_Ndims, mpi_dims, mpi_coords, myrank)
         call write_3D_field(detectors, mxll, n_detectors, print_det_step, time, dr, &
                             grid_Ndims, mpi_dims, mpi_coords, myrank)
 
