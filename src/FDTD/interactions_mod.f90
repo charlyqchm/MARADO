@@ -11,7 +11,6 @@ module interactions_mod
     use mxll_2D_mod
     use mxll_3D_mod
     use q_group_mod
-    use classical_medium_mod, only: TClassicalMedium, modify_polarization
 
     implicit none
 
@@ -1202,10 +1201,6 @@ subroutine plane_waves_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                 j0 = ny*mpi_coords(2)
                 k0 = nz*mpi_coords(3)
 
-                i_min_loc = sources%plane_waves(s)%i_min_loc
-
-                P_vec(1) = (i_min - 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
-                
                 j0 = ny*mpi_coords(2)
                 k0 = nz*mpi_coords(3)
 
@@ -1560,7 +1555,7 @@ end subroutine plane_waves_H_interactions
 
 !###################################################################################################
 
-subroutine gaussbeam_interactions(mxll, sources, mpi_coords, mpi_dims, time)
+subroutine gaussbeam_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
 
     class(TMxll)       , intent(inout) :: mxll
     type(TSources_list), intent(inout) :: sources
@@ -1568,303 +1563,1284 @@ subroutine gaussbeam_interactions(mxll, sources, mpi_coords, mpi_dims, time)
     integer            , intent(in)    :: mpi_dims(3)
     real(dp)           , intent(in)    :: time
 
-    integer  :: i, j, k, s
-    integer  :: idx
-    real(dp) :: E1, E0
-    real(dp) :: c_src
-    real(dp) :: dt
-
-    dt    = mxll%dt
-    c_src = mxll%dt/mxll%dr/c0/2.0d0
+    integer  :: s, i, j, k
+    integer  :: i_min, i_max, j_min, j_max, k_min, k_max
+    integer  :: i_min_loc, i_max_loc, j_min_loc, j_max_loc
+    integer  :: k_min_loc, k_max_loc
+    integer  :: i0, j0, k0
+    real(dp) :: dt_mu
+    real(dp) :: time_E
 
     select type(mxll)
     class is(TMxll_1D)
-        !No gauss beam sources in 1D
+        ! No Gaussian beam sources in 1D.
     class is(TMxll_2D)
+        dt_mu = mxll%dt/mu0/mxll%dr
+        time_E = time - 0.5d0*mxll%dt
+        do s = 1, sources%n_gb_src
+            i_min = sources%gauss_beams(s)%i_min 
+            i_max = sources%gauss_beams(s)%i_max 
+            j_min = sources%gauss_beams(s)%j_min 
+            j_max = sources%gauss_beams(s)%j_max 
+            i_min_loc = sources%gauss_beams(s)%i_min_loc
+            i_max_loc = sources%gauss_beams(s)%i_max_loc
+            j_min_loc = sources%gauss_beams(s)%j_min_loc
+            j_max_loc = sources%gauss_beams(s)%j_max_loc
 
+            if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+                if (sources%gauss_beams(s)%i_min_in_this_rank) then
+                    do j = 1, mxll%ny
+                        j0 = j + mpi_coords(2)*mxll%ny
+                        if (j0 >= j_min .and. j0 <= j_max) then
+                            call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                                i_ndx=i_min_loc, j_ndx=j, nx=mxll%nx, ny=mxll%ny, &
+                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                            mxll%Hy(i_min_loc-1,j) = mxll%Hy(i_min_loc-1,j) - &
+                            dt_mu*sources%gauss_beams(s)%E_vec(3)
+                        end if
+                    end do
+                end if
+
+                if (sources%gauss_beams(s)%i_max_in_this_rank) then
+                    do j = 1, mxll%ny
+                        j0 = j + mpi_coords(2)*mxll%ny
+                        if (j0 >= j_min .and. j0 <= j_max) then
+                            call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                                i_ndx=i_max_loc, j_ndx=j, nx=mxll%nx, ny=mxll%ny, &
+                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                            mxll%Hy(i_max_loc,j) = mxll%Hy(i_max_loc,j) + &
+                            dt_mu*sources%gauss_beams(s)%E_vec(3)
+                        end if
+
+                    end do
+                end if
+
+                if (sources%gauss_beams(s)%j_min_in_this_rank) then
+                    do i = 1, mxll%nx
+                        i0 = i + mpi_coords(1)*mxll%nx
+                        if (i0 >= i_min .and. i0 <= i_max) then
+                                call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                                    i_ndx=i, j_ndx=j_min_loc, nx=mxll%nx, ny=mxll%ny,              &
+                                    mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                            mxll%Hx(i,j_min_loc-1) = mxll%Hx(i,j_min_loc-1) + &
+                            dt_mu*sources%gauss_beams(s)%E_vec(3)
+                        end if
+                    end do
+                end if
+
+                if (sources%gauss_beams(s)%j_max_in_this_rank) then
+                    do i = 1, mxll%nx
+                        i0 = i + mpi_coords(1)*mxll%nx
+                        if (i0 >= i_min .and. i0 <= i_max) then
+                                call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                                    i_ndx=i, j_ndx=j_max_loc, nx=mxll%nx, ny=mxll%ny,              &
+                                    mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                            mxll%Hx(i,j_max_loc) = mxll%Hx(i,j_max_loc) - &
+                            dt_mu*sources%gauss_beams(s)%E_vec(3)
+                        end if
+                    end do
+                end if
+
+            end if
+
+            if (mxll%mode == TEZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+            if (sources%gauss_beams(s)%i_min_in_this_rank) then
+                do j = 1, mxll%ny
+                    j0 = j + mpi_coords(2)*mxll%ny
+                    if (j0 >= j_min .and. j0 <= j_max-1) then
+                            call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                             i_ndx=i_min_loc, j_ndx=j, dj=0.5d0, nx=mxll%nx, ny=mxll%ny, &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hz(i_min_loc-1,j) = mxll%Hz(i_min_loc-1,j) + &
+                        dt_mu*sources%gauss_beams(s)%E_vec(2)
+                    end if
+                end do
+            end if
+
+            if (sources%gauss_beams(s)%i_max_in_this_rank) then
+                do j = 1, mxll%ny
+                    j0 = j + mpi_coords(2)*mxll%ny
+                    if (j0 >= j_min .and. j0 <= j_max-1) then
+                            call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                             i_ndx=i_max_loc, j_ndx=j, dj=0.5d0, nx=mxll%nx, ny=mxll%ny, &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hz(i_max_loc,j) = mxll%Hz(i_max_loc,j) - &
+                        dt_mu*sources%gauss_beams(s)%E_vec(2)
+                    end if
+                end do
+            end if
+
+            if (sources%gauss_beams(s)%j_min_in_this_rank) then
+                do i = 1, mxll%nx
+                    i0 = i + mpi_coords(1)*mxll%nx
+                    if (i0 >= i_min .and. i0 <= i_max-1) then
+                            call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                             i_ndx=i, j_ndx=j_min_loc, di=0.5d0, nx=mxll%nx, ny=mxll%ny, &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hz(i,j_min_loc-1) = mxll%Hz(i,j_min_loc-1) - &
+                        dt_mu*sources%gauss_beams(s)%E_vec(1)
+                    end if
+                end do
+            end if
+
+            if (sources%gauss_beams(s)%j_max_in_this_rank) then
+                do i = 1, mxll%nx
+                    i0 = i + mpi_coords(1)*mxll%nx
+                    if (i0 >= i_min .and. i0 <= i_max-1) then
+                            call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                             i_ndx=i, j_ndx=j_max_loc, di=0.5d0, nx=mxll%nx, ny=mxll%ny, &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hz(i,j_max_loc) = mxll%Hz(i,j_max_loc) + &
+                        dt_mu*sources%gauss_beams(s)%E_vec(1)
+                    end if
+                end do
+            end if
+
+            end if
+        end do
+    class is(TMxll_3D)
+        dt_mu = mxll%dt/mu0/mxll%dr
+        time_E = time + 0.5d0*mxll%dt
         do s = 1, sources%n_gb_src
 
-            do j = 1, mxll%ny
-            do i = 1, mxll%nx
-                idx = mxll%media_map(i,j,1)
-                if (idx/=0 .and. (mxll%mode == TEZ_2D_MODE .or. &
-                    mxll%mode == FULL_2D_MODE)) then
+            i_min = sources%gauss_beams(s)%i_min
+            i_max = sources%gauss_beams(s)%i_max
+            j_min = sources%gauss_beams(s)%j_min
+            j_max = sources%gauss_beams(s)%j_max
+            k_min = sources%gauss_beams(s)%k_min
+            k_max = sources%gauss_beams(s)%k_max
+            i_min_loc = sources%gauss_beams(s)%i_min_loc
+            i_max_loc = sources%gauss_beams(s)%i_max_loc
+            j_min_loc = sources%gauss_beams(s)%j_min_loc
+            j_max_loc = sources%gauss_beams(s)%j_max_loc
+            k_min_loc = sources%gauss_beams(s)%k_min_loc
+            k_max_loc = sources%gauss_beams(s)%k_max_loc
 
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, i_ndx=i, &
-                                                j_ndx=j, di=0.5_dp, nx=mxll%nx, ny=mxll%ny, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+            if (sources%gauss_beams(s)%i_min_in_this_rank) then
 
-                    E0 = sources%gauss_beams(s)%E_vec(1)
-                    
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time+dt, &
-                                 i_ndx=i, j_ndx=j, di=0.5_dp, nx=mxll%nx, ny=mxll%ny, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                j0 = mxll%ny*mpi_coords(2)
+                k0 = mxll%nz*mpi_coords(3)
 
-                    E1 = sources%gauss_beams(s)%E_vec(1)
+                do k = 1, mxll%nz; do j = 1, mxll%ny
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max-1 .and. k0+k <= k_max)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                             i_ndx=i_min_loc, j_ndx=j, k_ndx=k, dj=0.5d0,                     &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hz(i_min_loc-1,j,k) = mxll%Hz(i_min_loc-1,j,k) + dt_mu*sources%gauss_beams(s)%E_vec(2)
+
+                    end if
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max .and. k0+k <= k_max-1)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                             i_ndx=i_min_loc, j_ndx=j, k_ndx=k, dk=0.5d0,                     &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hy(i_min_loc-1,j,k) = mxll%Hy(i_min_loc-1,j,k) - dt_mu*sources%gauss_beams(s)%E_vec(3)
+                    end if
+
+                end do; end do
+            end if
+
+            if (sources%gauss_beams(s)%i_max_in_this_rank) then
+
+                j0 = mxll%ny*mpi_coords(2)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do j = 1, mxll%ny
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max-1 .and. k0+k <= k_max)) then
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                             i_ndx=i_max_loc, j_ndx=j, k_ndx=k, dj=0.5d0,                   &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hz(i_max_loc,j,k) = mxll%Hz(i_max_loc,j,k) - dt_mu*sources%gauss_beams(s)%E_vec(2)
+                        
+                    end if
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max .and. k0+k <= k_max-1)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                            i_ndx=i_max_loc, j_ndx=j, k_ndx=k, dk=0.5d0, &
+                            nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                            mxll%Hy(i_max_loc,j,k) = mxll%Hy(i_max_loc,j,k) + dt_mu*sources%gauss_beams(s)%E_vec(3)
+                    end if
+
+                end do; end do
+
+            end if
+
+            if (sources%gauss_beams(s)%j_min_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max-1 .and. k0+k <= k_max)) then
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                        i_ndx=i, j_ndx=j_min_loc, k_ndx=k, di=0.5d0,                        &
+                        nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hz(i,j_min_loc-1,k) = mxll%Hz(i,j_min_loc-1,k) - dt_mu*sources%gauss_beams(s)%E_vec(1)
+                    end if
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max .and. k0+k <= k_max-1)) then
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                        i_ndx=i, j_ndx=j_min_loc, k_ndx=k, dk=0.5d0, &
+                        nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hx(i,j_min_loc-1,k) = mxll%Hx(i,j_min_loc-1,k) + dt_mu*sources%gauss_beams(s)%E_vec(3)
+                    end if
+                
+                end do; end do
+            
+            end if
+
+            if (sources%gauss_beams(s)%j_max_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do i = 1, mxll%nx
+            
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max-1 .and. k0+k <= k_max)) then
                     
-                    call modify_polarization(mxll%media, idx, mxll%PDx(i,j), mxll%PLx(i,j,:), &
-                                             E1, E0)
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_E,  &
+                             i_ndx=i, j_ndx=j_max_loc, k_ndx=k, di=0.5d0,                    &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hz(i, j_max_loc, k) = mxll%Hz(i, j_max_loc, k) + dt_mu*sources%gauss_beams(s)%E_vec(1)
+
+                    end if
+
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max .and. k0+k <= k_max-1)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_E,  &
+                            i_ndx=i, j_ndx=j_max_loc, k_ndx=k, dk=0.5d0,  &
+                            nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hx(i, j_max_loc, k) = mxll%Hx(i, j_max_loc, k) - dt_mu*sources%gauss_beams(s)%E_vec(3)
+
+                    end if
+            
+                end do; end do
+            
+            end if
+
+            if (sources%gauss_beams(s)%k_min_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                j0 = mxll%ny*mpi_coords(2)
+
+                do j = 1, mxll%ny; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max-1 .and. j0+j <= j_max)) then
+                            
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                             i_ndx=i, j_ndx=j, k_ndx=k_min_loc, di=0.5d0,  &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hy(i,j,k_min_loc-1) = mxll%Hy(i,j,k_min_loc-1) + dt_mu*sources%gauss_beams(s)%E_vec(1)
                     
+                    end if
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max .and. j0+j <= j_max-1)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_E,  &
+                            i_ndx=i, j_ndx=j, k_ndx=k_min_loc, dj=0.5d0,  &
+                            nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hx(i,j,k_min_loc-1) = mxll%Hx(i,j,k_min_loc-1) - dt_mu*sources%gauss_beams(s)%E_vec(2)
+
+                    end if
+
+                end do; end do
+
+            end if
+
+            if (sources%gauss_beams(s)%k_max_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                j0 = mxll%ny*mpi_coords(2)
+
+                do j = 1, mxll%ny; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max-1 .and. j0+j <= j_max)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                            i_ndx=i, j_ndx=j, k_ndx=k_max_loc, di=0.5d0,  &
+                            nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                            mxll%Hy(i,j,k_max_loc) = mxll%Hy(i,j,k_max_loc) - dt_mu*sources%gauss_beams(s)%E_vec(1)
+
+                    end if
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max .and. j0+j <= j_max-1)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                             i_ndx=i, j_ndx=j, k_ndx=k_max_loc, dj=0.5d0,  &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        mxll%Hx(i,j,k_max_loc) = mxll%Hx(i,j,k_max_loc) + dt_mu*sources%gauss_beams(s)%E_vec(2)
+
+                    end if
+                end do; end do
+            end if
+        end do
+    end select
+
+end subroutine gaussbeam_E_interactions
+!###################################################################################################
+
+subroutine gaussbeam_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
+    class(TMxll)       , intent(inout) :: mxll
+    type(TSources_list), intent(inout) :: sources
+    integer            , intent(in)    :: mpi_coords(3), mpi_dims(3)
+    real(dp)           , intent(in)    :: time
+
+    integer  :: i, j, k, s
+    integer  :: i_min, i_max, j_min, j_max, k_min, k_max
+    integer  :: i_min_loc, i_max_loc, j_min_loc, j_max_loc
+    integer  :: k_min_loc, k_max_loc
+    integer  :: i0, j0, k0
+    real(dp) :: dt_eps, time_H, H_vec(3)
+
+    select type(mxll)
+    class is(TMxll_1D)
+        ! No Gaussian beam sources in 1D.
+    class is(TMxll_2D)
+        dt_eps = mxll%dt/eps0/mxll%dr
+        time_H = time
+        do s = 1, sources%n_gb_src
+            i_min = sources%gauss_beams(s)%i_min
+            i_max = sources%gauss_beams(s)%i_max
+            j_min = sources%gauss_beams(s)%j_min
+            j_max = sources%gauss_beams(s)%j_max
+            i_min_loc = sources%gauss_beams(s)%i_min_loc
+            i_max_loc = sources%gauss_beams(s)%i_max_loc
+            j_min_loc = sources%gauss_beams(s)%j_min_loc
+            j_max_loc = sources%gauss_beams(s)%j_max_loc
+
+            if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+                if (sources%gauss_beams(s)%i_min_in_this_rank) then
+                    do j = 1, mxll%ny
+                        j0 = j + mpi_coords(2)*mxll%ny
+                        if (j0 >= j_min .and. j0 <= j_max) then
+                            call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                                i_ndx=i_min_loc, j_ndx=j, di=-0.5d0, nx=mxll%nx, ny=mxll%ny,  &
+                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                            H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                    sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                            mxll%Ez(i_min_loc,j) = mxll%Ez(i_min_loc,j) - dt_eps*H_vec(2)
+                        end if
+                    end do
                 end if
 
-                if (mxll%media_map(i,j,2)/=0 .and. (mxll%mode == TEZ_2D_MODE .or. &
-                    mxll%mode == FULL_2D_MODE)) then
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, i_ndx=i, &
-                                                j_ndx=j, dj=0.5_dp, nx=mxll%nx, ny=mxll%ny, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E0 = sources%gauss_beams(s)%E_vec(2)
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time+dt, &
-                                 i_ndx=i, j_ndx=j, dj=0.5_dp, nx=mxll%nx, ny=mxll%ny, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E1 = sources%gauss_beams(s)%E_vec(2)
-
-                    call modify_polarization(mxll%media, idx, mxll%PDy(i,j), mxll%PLy(i,j,:), &
-                                             E1, E0)
-
+                if (sources%gauss_beams(s)%i_max_in_this_rank) then
+                    do j = 1, mxll%ny
+                        j0 = j + mpi_coords(2)*mxll%ny
+                        if (j0 >= j_min .and. j0 <= j_max) then
+                            call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                                i_ndx=i_max_loc, j_ndx=j, di=0.5d0, nx=mxll%nx, ny=mxll%ny,   &
+                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                            H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                    sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                            mxll%Ez(i_max_loc,j) = mxll%Ez(i_max_loc,j) + dt_eps*H_vec(2)
+                        end if
+                    end do
                 end if
 
-                if (mxll%media_map(i,j,3)/=0 .and. (mxll%mode == TMZ_2D_MODE .or. &
-                    mxll%mode == FULL_2D_MODE)) then
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, i_ndx=i, &
-                                                j_ndx=j, nx=mxll%nx, ny=mxll%ny, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E0 = sources%gauss_beams(s)%E_vec(3)
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time+dt, &
-                                 i_ndx=i, j_ndx=j, dk=0.5_dp, nx=mxll%nx, ny=mxll%ny, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E1 = sources%gauss_beams(s)%E_vec(3)
-
-                    call modify_polarization(mxll%media, idx, mxll%PDz(i,j), mxll%PLz(i,j,:), &
-                                             E1, E0)
-
+                if (sources%gauss_beams(s)%j_min_in_this_rank) then
+                    do i = 1, mxll%nx
+                        i0 = i + mpi_coords(1)*mxll%nx
+                        if (i0 >= i_min .and. i0 <= i_max) then
+                            call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                                i_ndx=i, j_ndx=j_min_loc, dj=-0.5d0, nx=mxll%nx, ny=mxll%ny,   &
+                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                            H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                    sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                            mxll%Ez(i,j_min_loc) = mxll%Ez(i,j_min_loc) + dt_eps*H_vec(1)
+                        end if
+                    end do
                 end if
 
-            end do
-            end do
+                if (sources%gauss_beams(s)%j_max_in_this_rank) then
+                    do i = 1, mxll%nx
+                        i0 = i + mpi_coords(1)*mxll%nx
+                        if (i0 >= i_min .and. i0 <= i_max) then
+                            call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                                i_ndx=i, j_ndx=j_max_loc, dj=0.5d0, nx=mxll%nx, ny=mxll%ny,    &
+                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                            H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                    sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                            mxll%Ez(i,j_max_loc) = mxll%Ez(i,j_max_loc) - dt_eps*H_vec(1)
+                        end if
+                    end do
+                end if
+
+            end if
+
+            if (mxll%mode == TEZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+            if (sources%gauss_beams(s)%i_min_in_this_rank) then
+                do j = 1, mxll%ny
+                    j0 = j + mpi_coords(2)*mxll%ny
+                    if (j0 >= j_min .and. j0 <= j_max-1) then
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                            i_ndx=i_min_loc, j_ndx=j, di=-0.5d0, dj=0.5d0, nx=mxll%nx, ny=mxll%ny,   &
+                            mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ey(i_min_loc,j) = mxll%Ey(i_min_loc,j) + dt_eps*H_vec(3)
+                    end if
+                end do
+            end if
+
+            if (sources%gauss_beams(s)%i_max_in_this_rank) then
+                do j = 1, mxll%ny
+                    j0 = j + mpi_coords(2)*mxll%ny
+                    if (j0 >= j_min .and. j0 <= j_max-1) then
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                            i_ndx=i_max_loc, j_ndx=j, di=0.5d0, dj=0.5d0, nx=mxll%nx, ny=mxll%ny,    &
+                            mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ey(i_max_loc,j) = mxll%Ey(i_max_loc,j) - dt_eps*H_vec(3)
+                    end if
+                end do
+            end if
+
+            if (sources%gauss_beams(s)%j_min_in_this_rank) then
+                do i = 1, mxll%nx
+                    i0 = i + mpi_coords(1)*mxll%nx
+                    if (i0 >= i_min .and. i0 <= i_max-1) then
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                            i_ndx=i, j_ndx=j_min_loc, di=0.5d0, dj=-0.5d0, nx=mxll%nx, ny=mxll%ny,   &
+                            mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ex(i,j_min_loc) = mxll%Ex(i,j_min_loc) - dt_eps*H_vec(3)
+                    end if
+                end do
+            end if
+
+            if (sources%gauss_beams(s)%j_max_in_this_rank) then
+                do i = 1, mxll%nx
+                    i0 = i + mpi_coords(1)*mxll%nx
+                    if (i0 >= i_min .and. i0 <= i_max-1) then
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                            i_ndx=i, j_ndx=j_max_loc, di=0.5d0, dj=0.5d0, nx=mxll%nx, ny=mxll%ny,    &
+                            mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ex(i,j_max_loc) = mxll%Ex(i,j_max_loc) + dt_eps*H_vec(3)
+                    end if
+                end do
+            end if
+
+            end if
         end do
 
     class is(TMxll_3D)
-
-        do s = 1, sources%n_gb_src
-
-            do k = 1, mxll%nz
-            do j = 1, mxll%ny
-            do i = 1, mxll%nx
-
-                if (mxll%media_map(i,j,k,1)/=0) then
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, i_ndx=i, &
-                                                j_ndx=j, k_ndx=k, di=0.5_dp, &
-                                                nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E0 = sources%gauss_beams(s)%E_vec(1)
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time+dt, &
-                                 i_ndx=i, j_ndx=j, k_ndx=k, di=0.5_dp, &
-                                                nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E1 = sources%gauss_beams(s)%E_vec(1)
-
-                    call modify_polarization(mxll%media, idx, mxll%PDx(i,j,k), mxll%PLx(i,j,k,:), &
-                                             E1, E0)
-
-                end if
-
-                if (mxll%media_map(i,j,k,2)/=0) then
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, i_ndx=i, &
-                                                j_ndx=j, k_ndx=k, dj=0.5_dp, &
-                                                nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E0 = sources%gauss_beams(s)%E_vec(2)
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time+dt, &
-                                 i_ndx=i, j_ndx=j, k_ndx=k, dj=0.5_dp, &
-                                                nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E1 = sources%gauss_beams(s)%E_vec(2)
-
-                    call modify_polarization(mxll%media, idx, mxll%PDy(i,j,k), mxll%PLy(i,j,k,:), &
-                                             E1, E0)
-
-                end if
-
-                if (mxll%media_map(i,j,k,3)/=0) then
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, i_ndx=i, &
-                                                j_ndx=j, k_ndx=k, dk=0.5_dp, &
-                                                nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E0 = sources%gauss_beams(s)%E_vec(3)
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time+dt, &
-                                 i_ndx=i, j_ndx=j, k_ndx=k, dk=0.5_dp, &
-                                                nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E1 = sources%gauss_beams(s)%E_vec(3)
-
-                    call modify_polarization(mxll%media, idx, mxll%PDz(i,j,k), mxll%PLz(i,j,k,:), &
-                                             E1, E0)
-
-                end if
-
-            end do
-            end do
-            end do 
-
-        end do
     
-    end select
+        dt_eps = mxll%dt/eps0/mxll%dr
+        time_H = time
+        do s = 1, sources%n_gb_src
+            i_min = sources%gauss_beams(s)%i_min
+            i_max = sources%gauss_beams(s)%i_max
+            j_min = sources%gauss_beams(s)%j_min
+            j_max = sources%gauss_beams(s)%j_max
+            k_min = sources%gauss_beams(s)%k_min
+            k_max = sources%gauss_beams(s)%k_max
+            i_min_loc = sources%gauss_beams(s)%i_min_loc
+            i_max_loc = sources%gauss_beams(s)%i_max_loc
+            j_min_loc = sources%gauss_beams(s)%j_min_loc
+            j_max_loc = sources%gauss_beams(s)%j_max_loc
+            k_min_loc = sources%gauss_beams(s)%k_min_loc
+            k_max_loc = sources%gauss_beams(s)%k_max_loc
 
-end subroutine gaussbeam_interactions
+            if (sources%gauss_beams(s)%i_min_in_this_rank) then
+
+                j0 = mxll%ny*mpi_coords(2)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do j = 1, mxll%ny
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max .and. k0+k <= k_max-1)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                             i_ndx=i_min_loc, j_ndx=j, k_ndx=k, di=-0.5d0, dk=0.5d0,                 &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ez(i_min_loc,j,k) = mxll%Ez(i_min_loc,j,k) - dt_eps*H_vec(2)
+
+                    end if
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max-1 .and. k0+k <= k_max)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                             i_ndx=i_min_loc, j_ndx=j, k_ndx=k, di=-0.5d0, dj=0.5d0,                 &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ey(i_min_loc,j,k) = mxll%Ey(i_min_loc,j,k) + dt_eps*H_vec(3)
+
+                    end if
+
+                end do; end do
+            end if
+
+            if (sources%gauss_beams(s)%i_max_in_this_rank) then
+
+                j0 = mxll%ny*mpi_coords(2)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do j = 1, mxll%ny
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max .and. k0+k <= k_max-1)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                             i_ndx=i_max_loc, j_ndx=j, k_ndx=k, di=0.5d0, dk=0.5d0,         &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ez(i_max_loc,j,k) = mxll%Ez(i_max_loc,j,k) + dt_eps*H_vec(2)
+
+                    end if
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max-1 .and. k0+k <= k_max)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                             i_ndx=i_max_loc, j_ndx=j, k_ndx=k, di=0.5d0, dj=0.5d0,         &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ey(i_max_loc,j,k) = mxll%Ey(i_max_loc,j,k) - dt_eps*H_vec(3)
+
+                    end if
+
+                end do; end do
+
+            end if
+
+            if (sources%gauss_beams(s)%j_min_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max .and. k0+k <= k_max-1)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                             i_ndx=i, j_ndx=j_min_loc, k_ndx=k, dj=-0.5d0, dk=0.5d0,                 &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ez(i,j_min_loc,k) = mxll%Ez(i,j_min_loc,k) + dt_eps*H_vec(1)
+
+                    end if
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max-1 .and. k0+k <= k_max)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                             i_ndx=i, j_ndx=j_min_loc, k_ndx=k, dj=-0.5d0, di=-0.5d0,                 &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ex(i,j_min_loc,k) = mxll%Ex(i,j_min_loc,k) - dt_eps*H_vec(3)
+
+                    end if
+
+                end do; end do
+
+            end if
+
+            if (sources%gauss_beams(s)%j_max_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max .and. k0+k <= k_max-1)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                             i_ndx=i, j_ndx=j_max_loc, k_ndx=k, dj=0.5d0, dk=0.5d0,                  &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ez(i,j_max_loc,k) = mxll%Ez(i,j_max_loc,k) - dt_eps*H_vec(1)
+
+                    end if
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max-1 .and. k0+k <= k_max)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                             i_ndx=i, j_ndx=j_max_loc, k_ndx=k, dj=0.5d0, di=0.5d0,                  &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ex(i,j_max_loc,k) = mxll%Ex(i,j_max_loc,k) + dt_eps*H_vec(3)
+
+                    end if
+
+                end do; end do
+
+            end if
+
+            if (sources%gauss_beams(s)%k_min_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                j0 = mxll%ny*mpi_coords(2)
+
+                do j = 1, mxll%ny; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max .and. j0+j <= j_max-1)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                             i_ndx=i, j_ndx=j, k_ndx=k_min_loc, dk=-0.5d0, dj=0.5d0,        &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ey(i,j,k_min_loc) = mxll%Ey(i,j,k_min_loc) - dt_eps*H_vec(1)
+
+                    end if
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max-1 .and. j0+j <= j_max)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                             i_ndx=i, j_ndx=j, k_ndx=k_min_loc, dk=-0.5d0, di=0.5d0,        &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ex(i,j,k_min_loc) = mxll%Ex(i,j,k_min_loc) + dt_eps*H_vec(2)
+
+                    end if
+
+                end do; end do
+
+            end if
+
+            if (sources%gauss_beams(s)%k_max_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                j0 = mxll%ny*mpi_coords(2)
+
+                do j = 1, mxll%ny; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max .and. j0+j <= j_max-1)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                             i_ndx=i, j_ndx=j, k_ndx=k_max_loc, dk=0.5d0, dj=0.5d0,          &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ey(i,j,k_max_loc) = mxll%Ey(i,j,k_max_loc) + dt_eps*H_vec(1)
+
+                    end if
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max-1 .and. j0+j <= j_max)) then
+
+                        call sources%gauss_beams(s)%compute_time_space_profile(time=time_H, &
+                             i_ndx=i, j_ndx=j, k_ndx=k_max_loc, dk=0.5d0, di=0.5d0,         &
+                             nx=mxll%nx, ny=mxll%ny, nz=mxll%nz,                            &
+                             mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                        H_vec = CROSS_PRODUCT(sources%gauss_beams(s)%v_vec, &
+                                sources%gauss_beams(s)%E_vec)/(mu0*c0)
+                        mxll%Ex(i,j,k_max_loc) = mxll%Ex(i,j,k_max_loc) - dt_eps*H_vec(2)
+
+                    end if
+
+                end do; end do
+            end if
+        end do
+    end select
+end subroutine gaussbeam_H_interactions
+
 !###################################################################################################
 
-subroutine gaussbeam_q_interactions(time, sources, q_group, move_q_system, dt, dr, &
-                                    mpi_coords, mpi_dims, grid_Ndims, dims , mode)
-    type(TSources_list) , intent(inout) :: sources
-    type(TQ_Group)      , intent(inout) :: q_group
-    logical             , intent(in)    :: move_q_system
-    integer             , intent(in)    :: mpi_coords(3)
-    integer             , intent(in)    :: mpi_dims(3)
-    integer             , intent(in)    :: grid_Ndims(3)
-    integer             , intent(in)    :: dims
-    integer             , intent(in)    :: mode
-    real(dp)            , intent(in)    :: time
-    real(dp)            , intent(in)    :: dt
-    real(dp)            , intent(in)    :: dr
-
-    integer     :: i_idx, j_idx, k_idx
-    integer     :: n, s, n_mol
-    integer     :: nx, ny, nz
-    real(dp)    :: E_vec(3)
-
-    nx = grid_Ndims(1)
-    ny = grid_Ndims(2)
-    nz = grid_Ndims(3)
-
-    if (.not. move_q_system) return
-
-    select case(q_group%group_type)
-    case(Q_MATERIAL)
-
-        select case(dims)
-        case(1)
-            !No gauss beam sources in 1D
-        case(2)
-
-            do s = 1, sources%n_gb_src
-
-                do n = 1, q_group%n_systems
-                        
-                    n_mol = n
-                    i_idx = q_group%map(n,3)
-                    j_idx = q_group%map(n,4)
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, &
-                                 i_ndx=i_idx, j_ndx=j_idx, nx=nx, ny=ny,              &
-                                 mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E_vec = sources%gauss_beams(s)%E_vec
-
-                    q_group%E_field_list(n_mol, 1) = q_group%E_field_list(n_mol, 1) + E_vec(1)
-                    q_group%E_field_list(n_mol, 2) = q_group%E_field_list(n_mol, 2) + E_vec(2)
-                    q_group%E_field_list(n_mol, 3) = q_group%E_field_list(n_mol, 3) + E_vec(3)
-                
-                end do
-
-            end do
-
-        case(3)
-            do s = 1, sources%n_gb_src
-
-                do n = 1, q_group%n_systems
-                    
-                    n_mol = n
-                    i_idx = q_group%map(n,3)
-                    j_idx = q_group%map(n,4)
-                    k_idx = q_group%map(n,5)
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time,        &
-                                 i_ndx=i_idx, j_ndx=j_idx, k_ndx=k_idx, nx=nx, ny=ny, nz=nz, &
-                                 mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E_vec = sources%gauss_beams(s)%E_vec
-
-                    q_group%E_field_list(n_mol, 1) = q_group%E_field_list(n_mol, 1) + E_vec(1)
-                    q_group%E_field_list(n_mol, 2) = q_group%E_field_list(n_mol, 2) + E_vec(2)
-                    q_group%E_field_list(n_mol, 3) = q_group%E_field_list(n_mol, 3) + E_vec(3)
-
-                end do
-            end do
-
-        end select
-
-    case(Q_SINGLE)
-        select case(dims)
-        case(1)
-            !No gauss beam sources in 1D
-        case(2)
-            do s = 1,  sources%n_gb_src
-
-                do n = 1, q_group%n_systems
-                    
-                    n_mol = n
-                    i_idx = q_group%kernel_map(n,0,0,0,3)
-                    j_idx = q_group%kernel_map(n,0,0,0,4)
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time,   &
-                                 i_ndx=i_idx, j_ndx=j_idx, nx=nx, ny=ny,                &
-                                 mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E_vec = sources%gauss_beams(s)%E_vec
-
-                    q_group%E_field_list(n_mol, 1) = q_group%E_field_list(n_mol, 1) + E_vec(1)
-                    q_group%E_field_list(n_mol, 2) = q_group%E_field_list(n_mol, 2) + E_vec(2)
-                    q_group%E_field_list(n_mol, 3) = q_group%E_field_list(n_mol, 3) + E_vec(3)
-
-                end do
-            end do
-        case(3)
-            do s = 1, sources%n_gb_src
-
-                do n = 1, q_group%n_systems
-                    
-                    n_mol = n
-                    i_idx = q_group%kernel_map(n,0,0,0,3)
-                    j_idx = q_group%kernel_map(n,0,0,0,4)
-                    k_idx = q_group%kernel_map(n,0,0,0,5)
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time,   &
-                                 i_ndx=i_idx, j_ndx=j_idx, k_ndx=k_idx, nx=nx, ny=ny, nz=nz, &
-                                 mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E_vec = sources%gauss_beams(s)%E_vec
-
-                    q_group%E_field_list(n_mol, 1) = q_group%E_field_list(n_mol, 1) + E_vec(1)
-                    q_group%E_field_list(n_mol, 2) = q_group%E_field_list(n_mol, 2) + E_vec(2)
-                    q_group%E_field_list(n_mol, 3) = q_group%E_field_list(n_mol, 3) + E_vec(3)
-                    
-                end do
-            end do
-        end select
+subroutine between_grids_E_interaction(mxll, mxll_aux, sources, mpi_coords, mpi_dims, time)
     
+    class(TMxll)       , intent(inout) :: mxll
+    class(TMxll)       , intent(inout) :: mxll_aux
+    type(TSources_list), intent(inout) :: sources
+    integer            , intent(in)    :: mpi_coords(3)
+    integer            , intent(in)    :: mpi_dims(3)
+    real(dp)           , intent(in)    :: time
+
+    integer  :: i, j, k, s
+    integer  :: i_min, i_max, j_min, j_max, k_min, k_max
+    integer  :: i_min_loc, i_max_loc, j_min_loc, j_max_loc
+    integer  :: k_min_loc, k_max_loc
+    integer  :: i0, j0, k0
+    real(dp) :: dt_mu
+
+    select type(mxll)
+    class is(TMxll_1D)
+        ! No Gaussian beam sources in 1D.
+    class is(TMxll_2D)
+    select type(mxll_aux)
+    class is(TMxll_2D)
+
+        dt_mu = mxll%dt/mu0/mxll%dr
+        
+        do s = 1, sources%n_gb_src
+            i_min = sources%gauss_beams(s)%i_min
+            i_max = sources%gauss_beams(s)%i_max
+            j_min = sources%gauss_beams(s)%j_min
+            j_max = sources%gauss_beams(s)%j_max
+            i_min_loc = sources%gauss_beams(s)%i_min_loc
+            i_max_loc = sources%gauss_beams(s)%i_max_loc
+            j_min_loc = sources%gauss_beams(s)%j_min_loc
+            j_max_loc = sources%gauss_beams(s)%j_max_loc
+
+            if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+                if (sources%gauss_beams(s)%i_min_in_this_rank) then
+                    do j = 1, mxll%ny
+                        j0 = j + mpi_coords(2)*mxll%ny
+                        if (j0 >= j_min .and. j0 <= j_max) then
+                            mxll%Hy(i_min_loc-1,j) = mxll%Hy(i_min_loc-1,j) - &
+                                                     dt_mu*mxll_aux%Ez(i_min_loc,j)
+                        end if
+                    end do
+                end if
+
+                if (sources%gauss_beams(s)%i_max_in_this_rank) then
+                    do j = 1, mxll%ny
+                        j0 = j + mpi_coords(2)*mxll%ny
+                        if (j0 >= j_min .and. j0 <= j_max) then
+                            mxll%Hy(i_max_loc,j) = mxll%Hy(i_max_loc,j) + &
+                                                   dt_mu*mxll_aux%Ez(i_max_loc,j)
+                        end if
+
+                    end do
+                end if
+
+                if (sources%gauss_beams(s)%j_min_in_this_rank) then
+                    do i = 1, mxll%nx
+                        i0 = i + mpi_coords(1)*mxll%nx
+                        if (i0 >= i_min .and. i0 <= i_max) then
+                            mxll%Hx(i,j_min_loc-1) = mxll%Hx(i,j_min_loc-1) + &
+                                                     dt_mu*mxll_aux%Ez(i,j_min_loc)
+                        end if
+                    end do
+                end if
+
+                if (sources%gauss_beams(s)%j_max_in_this_rank) then
+                    do i = 1, mxll%nx
+                        i0 = i + mpi_coords(1)*mxll%nx
+                        if (i0 >= i_min .and. i0 <= i_max) then
+                            mxll%Hx(i,j_max_loc) = mxll%Hx(i,j_max_loc) - &
+                                                   dt_mu*mxll_aux%Ez(i,j_max_loc)
+                        end if
+                    end do
+                end if
+
+            end if
+
+            if (mxll%mode == TEZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+            if (sources%gauss_beams(s)%i_min_in_this_rank) then
+                do j = 1, mxll%ny
+                    j0 = j + mpi_coords(2)*mxll%ny
+                    if (j0 >= j_min .and. j0 <= j_max-1) then
+                        mxll%Hz(i_min_loc-1,j) = mxll%Hz(i_min_loc-1,j) + &
+                                                 dt_mu*mxll_aux%Ey(i_min_loc,j)
+                    end if
+                end do
+            end if
+
+            if (sources%gauss_beams(s)%i_max_in_this_rank) then
+                do j = 1, mxll%ny
+                    j0 = j + mpi_coords(2)*mxll%ny
+                    if (j0 >= j_min .and. j0 <= j_max-1) then
+                        mxll%Hz(i_max_loc,j) = mxll%Hz(i_max_loc,j) - &
+                                               dt_mu*mxll_aux%Ey(i_max_loc,j)
+                    end if
+                end do
+            end if
+
+            if (sources%gauss_beams(s)%j_min_in_this_rank) then
+                do i = 1, mxll%nx
+                    i0 = i + mpi_coords(1)*mxll%nx
+                    if (i0 >= i_min .and. i0 <= i_max-1) then
+                        mxll%Hz(i,j_min_loc-1) = mxll%Hz(i,j_min_loc-1) - &
+                                                 dt_mu*mxll_aux%Ex(i,j_min_loc)
+                    end if
+                end do
+            end if
+
+            if (sources%gauss_beams(s)%j_max_in_this_rank) then
+                do i = 1, mxll%nx
+                    i0 = i + mpi_coords(1)*mxll%nx
+                    if (i0 >= i_min .and. i0 <= i_max-1) then
+                        mxll%Hz(i,j_max_loc) = mxll%Hz(i,j_max_loc) + &
+                                               dt_mu*mxll_aux%Ex(i,j_max_loc)
+                    end if
+                end do
+            end if
+
+            end if
+        end do
+
     end select
 
-end subroutine gaussbeam_q_interactions
+    class is(TMxll_3D)
+    select type(mxll_aux)
+    class is(TMxll_3D)
+
+        dt_mu = mxll%dt/mu0/mxll%dr
+    
+        do s = 1, sources%n_gb_src
+
+            i_min = sources%gauss_beams(s)%i_min
+            i_max = sources%gauss_beams(s)%i_max
+            j_min = sources%gauss_beams(s)%j_min
+            j_max = sources%gauss_beams(s)%j_max
+            k_min = sources%gauss_beams(s)%k_min
+            k_max = sources%gauss_beams(s)%k_max
+            i_min_loc = sources%gauss_beams(s)%i_min_loc
+            i_max_loc = sources%gauss_beams(s)%i_max_loc
+            j_min_loc = sources%gauss_beams(s)%j_min_loc
+            j_max_loc = sources%gauss_beams(s)%j_max_loc
+            k_min_loc = sources%gauss_beams(s)%k_min_loc
+            k_max_loc = sources%gauss_beams(s)%k_max_loc
+
+            if (sources%gauss_beams(s)%i_min_in_this_rank) then
+
+                j0 = mxll%ny*mpi_coords(2)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do j = 1, mxll%ny
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max-1 .and. k0+k <= k_max)) then
+                        mxll%Hz(i_min_loc-1,j,k) = mxll%Hz(i_min_loc-1,j,k) + dt_mu*mxll_aux%Ey(i_min_loc,j,k)
+                    end if
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max .and. k0+k <= k_max-1)) then
+                        mxll%Hy(i_min_loc-1,j,k) = mxll%Hy(i_min_loc-1,j,k) - dt_mu*mxll_aux%Ez(i_min_loc,j,k)
+                    end if
+
+                end do; end do
+            end if
+
+            if (sources%gauss_beams(s)%i_max_in_this_rank) then
+
+                j0 = mxll%ny*mpi_coords(2)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do j = 1, mxll%ny
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max-1 .and. k0+k <= k_max)) then
+                        mxll%Hz(i_max_loc,j,k) = mxll%Hz(i_max_loc,j,k) - dt_mu*mxll_aux%Ey(i_max_loc,j,k)
+                    end if
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max .and. k0+k <= k_max-1)) then
+                        mxll%Hy(i_max_loc,j,k) = mxll%Hy(i_max_loc,j,k) + dt_mu*mxll_aux%Ez(i_max_loc,j,k)
+                    end if
+
+                end do; end do
+
+            end if
+
+            if (sources%gauss_beams(s)%j_min_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max-1 .and. k0+k <= k_max)) then
+                        mxll%Hz(i,j_min_loc-1,k) = mxll%Hz(i,j_min_loc-1,k) - dt_mu*mxll_aux%Ex(i,j_min_loc,k)
+                    end if
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max .and. k0+k <= k_max-1)) then
+                        mxll%Hx(i,j_min_loc-1,k) = mxll%Hx(i,j_min_loc-1,k) + dt_mu*mxll_aux%Ez(i,j_min_loc,k)
+                    end if
+                
+                end do; end do
+            
+            end if
+
+            if (sources%gauss_beams(s)%j_max_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do i = 1, mxll%nx
+            
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max-1 .and. k0+k <= k_max)) then
+                        mxll%Hz(i, j_max_loc, k) = mxll%Hz(i, j_max_loc, k) + dt_mu*mxll_aux%Ex(i, j_max_loc, k)
+                    end if
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max .and. k0+k <= k_max-1)) then
+                        mxll%Hx(i, j_max_loc, k) = mxll%Hx(i, j_max_loc, k) - dt_mu*mxll_aux%Ez(i, j_max_loc, k)
+                    end if
+            
+                end do; end do
+            
+            end if
+
+            if (sources%gauss_beams(s)%k_min_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                j0 = mxll%ny*mpi_coords(2)
+
+                do j = 1, mxll%ny; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max-1 .and. j0+j <= j_max)) then
+                        mxll%Hy(i,j,k_min_loc-1) = mxll%Hy(i,j,k_min_loc-1) + dt_mu*mxll_aux%Ex(i,j,k_min_loc)
+                    end if
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max .and. j0+j <= j_max-1)) then
+                        mxll%Hx(i,j,k_min_loc-1) = mxll%Hx(i,j,k_min_loc-1) - dt_mu*mxll_aux%Ey(i,j,k_min_loc)
+                    end if
+
+                end do; end do
+
+            end if
+
+            if (sources%gauss_beams(s)%k_max_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                j0 = mxll%ny*mpi_coords(2)
+
+                do j = 1, mxll%ny; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max-1 .and. j0+j <= j_max)) then
+                        mxll%Hy(i,j,k_max_loc) = mxll%Hy(i,j,k_max_loc) - dt_mu*mxll_aux%Ex(i,j,k_max_loc)
+                    end if
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max .and. j0+j <= j_max-1)) then
+                        mxll%Hx(i,j,k_max_loc) = mxll%Hx(i,j,k_max_loc) + dt_mu*mxll_aux%Ey(i,j,k_max_loc)
+                    end if
+                end do; end do
+            end if
+        end do
+
+    end select
+    end select
+
+end subroutine between_grids_E_interaction
+
+!###################################################################################################
+
+subroutine between_grids_H_interaction(mxll, mxll_aux, sources, mpi_coords, mpi_dims, time)
+    
+    class(TMxll)       , intent(inout) :: mxll
+    class(TMxll)       , intent(inout) :: mxll_aux
+    type(TSources_list), intent(inout) :: sources
+    integer            , intent(in)    :: mpi_coords(3), mpi_dims(3)
+    real(dp)           , intent(in)    :: time
+
+    integer  :: i, j, k, s
+    integer  :: i_min, i_max, j_min, j_max, k_min, k_max
+    integer  :: i_min_loc, i_max_loc, j_min_loc, j_max_loc
+    integer  :: k_min_loc, k_max_loc
+    integer  :: i0, j0, k0
+    real(dp) :: dt_eps
+
+    select type(mxll)
+    class is(TMxll_1D)
+        ! No Gaussian beam sources in 1D.
+    class is(TMxll_2D)
+    select type(mxll_aux)
+    class is(TMxll_2D)
+        
+        dt_eps = mxll%dt/eps0/mxll%dr
+        
+        do s = 1, sources%n_gb_src
+            i_min = sources%gauss_beams(s)%i_min
+            i_max = sources%gauss_beams(s)%i_max
+            j_min = sources%gauss_beams(s)%j_min
+            j_max = sources%gauss_beams(s)%j_max
+            i_min_loc = sources%gauss_beams(s)%i_min_loc
+            i_max_loc = sources%gauss_beams(s)%i_max_loc
+            j_min_loc = sources%gauss_beams(s)%j_min_loc
+            j_max_loc = sources%gauss_beams(s)%j_max_loc
+
+            if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+                if (sources%gauss_beams(s)%i_min_in_this_rank) then
+                    do j = 1, mxll%ny
+                        j0 = j + mpi_coords(2)*mxll%ny
+                        if (j0 >= j_min .and. j0 <= j_max) then
+                            mxll%Ez(i_min_loc,j) = mxll%Ez(i_min_loc,j) - dt_eps*mxll_aux%Hy(i_min_loc-1,j)
+                        end if
+                    end do
+                end if
+
+                if (sources%gauss_beams(s)%i_max_in_this_rank) then
+                    do j = 1, mxll%ny
+                        j0 = j + mpi_coords(2)*mxll%ny
+                        if (j0 >= j_min .and. j0 <= j_max) then
+                            mxll%Ez(i_max_loc,j) = mxll%Ez(i_max_loc,j) + dt_eps*mxll_aux%Hy(i_max_loc,j)
+                        end if
+                    end do
+                end if
+
+                if (sources%gauss_beams(s)%j_min_in_this_rank) then
+                    do i = 1, mxll%nx
+                        i0 = i + mpi_coords(1)*mxll%nx
+                        if (i0 >= i_min .and. i0 <= i_max) then
+                            mxll%Ez(i,j_min_loc) = mxll%Ez(i,j_min_loc) + dt_eps*mxll_aux%Hx(i,j_min_loc-1)
+                        end if
+                    end do
+                end if
+
+                if (sources%gauss_beams(s)%j_max_in_this_rank) then
+                    do i = 1, mxll%nx
+                        i0 = i + mpi_coords(1)*mxll%nx
+                        if (i0 >= i_min .and. i0 <= i_max) then
+                            mxll%Ez(i,j_max_loc) = mxll%Ez(i,j_max_loc) - dt_eps*mxll_aux%Hx(i,j_max_loc)
+                        end if
+                    end do
+                end if
+
+            end if
+
+            if (mxll%mode == TEZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+            if (sources%gauss_beams(s)%i_min_in_this_rank) then
+                do j = 1, mxll%ny
+                    j0 = j + mpi_coords(2)*mxll%ny
+                    if (j0 >= j_min .and. j0 <= j_max-1) then
+                        mxll%Ey(i_min_loc,j) = mxll%Ey(i_min_loc,j) + dt_eps*mxll_aux%Hz(i_min_loc-1,j)
+                    end if
+                end do
+            end if
+
+            if (sources%gauss_beams(s)%i_max_in_this_rank) then
+                do j = 1, mxll%ny
+                    j0 = j + mpi_coords(2)*mxll%ny
+                    if (j0 >= j_min .and. j0 <= j_max-1) then
+                        mxll%Ey(i_max_loc,j) = mxll%Ey(i_max_loc,j) - dt_eps*mxll_aux%Hz(i_max_loc,j)
+                    end if
+                end do
+            end if
+
+            if (sources%gauss_beams(s)%j_min_in_this_rank) then
+                do i = 1, mxll%nx
+                    i0 = i + mpi_coords(1)*mxll%nx
+                    if (i0 >= i_min .and. i0 <= i_max-1) then
+                        mxll%Ex(i,j_min_loc) = mxll%Ex(i,j_min_loc) - dt_eps*mxll_aux%Hz(i,j_min_loc-1)
+                    end if
+                end do
+            end if
+
+            if (sources%gauss_beams(s)%j_max_in_this_rank) then
+                do i = 1, mxll%nx
+                    i0 = i + mpi_coords(1)*mxll%nx
+                    if (i0 >= i_min .and. i0 <= i_max-1) then
+                        mxll%Ex(i,j_max_loc) = mxll%Ex(i,j_max_loc) + dt_eps*mxll_aux%Hz(i,j_max_loc)
+                    end if
+                end do
+            end if
+
+            end if
+        end do
+
+    end select
+
+    class is(TMxll_3D)
+    select type(mxll_aux)
+    class is(TMxll_3D)
+    
+        dt_eps = mxll%dt/eps0/mxll%dr
+
+        do s = 1, sources%n_gb_src
+            i_min = sources%gauss_beams(s)%i_min
+            i_max = sources%gauss_beams(s)%i_max
+            j_min = sources%gauss_beams(s)%j_min
+            j_max = sources%gauss_beams(s)%j_max
+            k_min = sources%gauss_beams(s)%k_min
+            k_max = sources%gauss_beams(s)%k_max
+            i_min_loc = sources%gauss_beams(s)%i_min_loc
+            i_max_loc = sources%gauss_beams(s)%i_max_loc
+            j_min_loc = sources%gauss_beams(s)%j_min_loc
+            j_max_loc = sources%gauss_beams(s)%j_max_loc
+            k_min_loc = sources%gauss_beams(s)%k_min_loc
+            k_max_loc = sources%gauss_beams(s)%k_max_loc
+
+            if (sources%gauss_beams(s)%i_min_in_this_rank) then
+
+                j0 = mxll%ny*mpi_coords(2)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do j = 1, mxll%ny
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max .and. k0+k <= k_max-1)) then
+                        mxll%Ez(i_min_loc,j,k) = mxll%Ez(i_min_loc,j,k) - dt_eps*mxll_aux%Hy(i_min_loc-1,j,k)
+                    end if
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max-1 .and. k0+k <= k_max)) then
+                        mxll%Ey(i_min_loc,j,k) = mxll%Ey(i_min_loc,j,k) + dt_eps*mxll_aux%Hz(i_min_loc-1,j,k)
+                    end if
+
+                end do; end do
+            end if
+
+            if (sources%gauss_beams(s)%i_max_in_this_rank) then
+
+                j0 = mxll%ny*mpi_coords(2)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do j = 1, mxll%ny
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max .and. k0+k <= k_max-1)) then
+                        mxll%Ez(i_max_loc,j,k) = mxll%Ez(i_max_loc,j,k) + dt_eps*mxll_aux%Hy(i_max_loc,j,k)
+                    end if
+
+                    if ((j0+j >= j_min .and. k0+k >= k_min) .and. &
+                        (j0+j <= j_max-1 .and. k0+k <= k_max)) then
+                        mxll%Ey(i_max_loc,j,k) = mxll%Ey(i_max_loc,j,k) - dt_eps*mxll_aux%Hz(i_max_loc,j,k)
+                    end if
+
+                end do; end do
+
+            end if
+
+            if (sources%gauss_beams(s)%j_min_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max .and. k0+k <= k_max-1)) then
+                        mxll%Ez(i,j_min_loc,k) = mxll%Ez(i,j_min_loc,k) + dt_eps*mxll_aux%Hx(i,j_min_loc-1,k)
+                    end if
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max-1 .and. k0+k <= k_max)) then
+                        mxll%Ex(i,j_min_loc,k) = mxll%Ex(i,j_min_loc,k) - dt_eps*mxll_aux%Hz(i,j_min_loc-1,k)
+                    end if
+
+                end do; end do
+
+            end if
+
+            if (sources%gauss_beams(s)%j_max_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                k0 = mxll%nz*mpi_coords(3)
+
+                do k = 1, mxll%nz; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max .and. k0+k <= k_max-1)) then
+                        mxll%Ez(i,j_max_loc,k) = mxll%Ez(i,j_max_loc,k) - dt_eps*mxll_aux%Hx(i,j_max_loc,k)
+                    end if
+
+                    if ((i0+i >= i_min .and. k0+k >= k_min) .and. &
+                        (i0+i <= i_max-1 .and. k0+k <= k_max)) then
+                        mxll%Ex(i,j_max_loc,k) = mxll%Ex(i,j_max_loc,k) + dt_eps*mxll_aux%Hz(i,j_max_loc,k)
+                    end if
+
+                end do; end do
+
+            end if
+
+            if (sources%gauss_beams(s)%k_min_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                j0 = mxll%ny*mpi_coords(2)
+
+                do j = 1, mxll%ny; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max .and. j0+j <= j_max-1)) then
+                        mxll%Ey(i,j,k_min_loc) = mxll%Ey(i,j,k_min_loc) - dt_eps*mxll_aux%Hx(i,j,k_min_loc-1)
+                    end if
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max-1 .and. j0+j <= j_max)) then
+                        mxll%Ex(i,j,k_min_loc) = mxll%Ex(i,j,k_min_loc) + dt_eps*mxll_aux%Hy(i,j,k_min_loc-1)
+                    end if
+
+                end do; end do
+
+            end if
+
+            if (sources%gauss_beams(s)%k_max_in_this_rank) then
+
+                i0 = mxll%nx*mpi_coords(1)
+                j0 = mxll%ny*mpi_coords(2)
+
+                do j = 1, mxll%ny; do i = 1, mxll%nx
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max .and. j0+j <= j_max-1)) then
+                        mxll%Ey(i,j,k_max_loc) = mxll%Ey(i,j,k_max_loc) + dt_eps*mxll_aux%Hx(i,j,k_max_loc)
+                    end if
+
+                    if ((i0+i >= i_min .and. j0+j >= j_min) .and. &
+                        (i0+i <= i_max-1 .and. j0+j <= j_max)) then
+                        mxll%Ex(i,j,k_max_loc) = mxll%Ex(i,j,k_max_loc) - dt_eps*mxll_aux%Hy(i,j,k_max_loc)
+                    end if
+
+                end do; end do
+            end if
+        end do
+
+    end select
+    end select
+
+end subroutine between_grids_H_interaction
 
 !###################################################################################################
 

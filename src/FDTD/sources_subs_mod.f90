@@ -131,6 +131,15 @@ module sources_subs_mod
         real(dp)            :: lambda
         real(dp)            :: k
         real(dp)            :: E_vec(3)
+        integer             :: i_min, i_max
+        integer             :: j_min, j_max
+        integer             :: k_min, k_max
+        integer             :: i_min_loc, i_max_loc
+        integer             :: j_min_loc, j_max_loc
+        integer             :: k_min_loc, k_max_loc
+        logical             :: i_min_in_this_rank, i_max_in_this_rank
+        logical             :: j_min_in_this_rank, j_max_in_this_rank
+        logical             :: k_min_in_this_rank, k_max_in_this_rank
 
     contains
 
@@ -783,6 +792,8 @@ subroutine init_gaussbeam_src(this, input_ch, dim, mode_2D, dt, dr, grid_Ndims, 
     real(dp)             ,intent(in)    :: dt
 
     character(len=50)  :: type_src_ch
+    integer            :: i_min, i_max, j_min, j_max, k_min, k_max
+    integer            :: rank_x, rank_y, rank_z
     real(dp)           :: E_amp
     real(dp)           :: phi
     real(dp)           :: theta
@@ -798,10 +809,13 @@ subroutine init_gaussbeam_src(this, input_ch, dim, mode_2D, dt, dr, grid_Ndims, 
     real(dp)           :: psi_z
     real(dp)           :: sigma
     real(dp)           :: uz_vec(3) = (/0.0d0, 0.0d0, 1.0d0/)
-
+    real(dp)           :: x_min, x_max
+    real(dp)           :: y_min, y_max
+    real(dp)           :: z_min, z_max
 
     read(input_ch, *) type_src_ch, E_amp, phi, theta, psi, freq, &             
-                      phase, r0(1), r0(2), r0(3), w0, dz_ramp, z0_ramp
+                      phase, r0(1), r0(2), r0(3), w0, dz_ramp, z0_ramp, &
+                      x_min, x_max, y_min, y_max, z_min, z_max
 
     this%dim   = dim
     this%E_amp = E_amp
@@ -824,6 +838,112 @@ subroutine init_gaussbeam_src(this, input_ch, dim, mode_2D, dt, dr, grid_Ndims, 
     this%z_R     = pi0*this%w0**2/this%lambda
     this%dz_ramp = dz_ramp * nm_to_au
     this%z0_ramp = z0_ramp * nm_to_au
+
+    x_min  = x_min * nm_to_au
+    x_max  = x_max * nm_to_au
+    y_min  = y_min * nm_to_au
+    y_max  = y_max * nm_to_au
+    z_min  = z_min * nm_to_au
+    z_max  = z_max * nm_to_au
+
+    if (x_min < (1-int(grid_Ndims(1)*mpi_dims(1)/2))*dr .or. x_max > (int(grid_Ndims(1)*mpi_dims(1)/2))*dr) then
+        write (*, '("Error: the plane wave source extends beyond the simulation box in x direction &
+                & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(1)*mpi_dims(1)/2))*dr/nm_to_au, &
+                                                  (int(grid_Ndims(1)*mpi_dims(1)/2))*dr/nm_to_au
+        error stop
+    end if
+
+    if (dim > 1) then
+
+        if (y_min < (1-int(grid_Ndims(2)*mpi_dims(2)/2))*dr .or. y_max > (int(grid_Ndims(2)*mpi_dims(2)/2))*dr) then
+            write (*, '("Error: the plane wave source extends beyond the simulation box in y direction &
+                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(2)*mpi_dims(2)/2))*dr/nm_to_au, &
+                                                    (int(grid_Ndims(2)*mpi_dims(2)/2))*dr/nm_to_au
+            error stop
+        end if
+
+    end if
+
+    if (dim == 3) then
+
+        if (z_min < (1-int(grid_Ndims(3)*mpi_dims(3)/2))*dr .or. z_max > (int(grid_Ndims(3)*mpi_dims(3)/2))*dr) then
+            write (*, '("Error: the plane wave source extends beyond the simulation box in z direction &
+                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(3)*mpi_dims(3)/2))*dr/nm_to_au, &
+                                                    (int(grid_Ndims(3)*mpi_dims(3)/2))*dr/nm_to_au
+            error stop
+        end if
+    end if
+
+    i_min  = FLOOR(x_min/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+    i_max  = FLOOR(x_max/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+    j_min  = FLOOR(y_min/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+    j_max  = FLOOR(y_max/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+    k_min  = FLOOR(z_min/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
+    k_max  = FLOOR(z_max/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
+
+    this%i_min = i_min
+    this%i_max = i_max
+    this%j_min = j_min
+    this%j_max = j_max
+    this%k_min = k_min
+    this%k_max = k_max
+
+    this%i_min_in_this_rank = .false.
+    this%i_max_in_this_rank = .false.
+    this%j_min_in_this_rank = .false.
+    this%j_max_in_this_rank = .false.
+    this%k_min_in_this_rank = .false.
+    this%k_max_in_this_rank = .false.
+    
+    rank_x = int((i_min-1)/grid_Ndims(1))
+
+    if (rank_x == mpi_coords(1)) then
+        this%i_min_in_this_rank = .true.
+        this%i_min_loc          = i_min - rank_x*grid_Ndims(1)
+    end if
+
+    rank_x = int((i_max-1)/grid_Ndims(1))
+
+    if (rank_x == mpi_coords(1)) then
+        this%i_max_in_this_rank = .true.
+        this%i_max_loc          = i_max - rank_x*grid_Ndims(1)
+    end if
+
+    if (this%dim > 1) then
+
+        rank_y = int((j_min-1)/grid_Ndims(2))
+
+        if (rank_y == mpi_coords(2)) then
+            this%j_min_in_this_rank = .true.
+            this%j_min_loc          = j_min - rank_y*grid_Ndims(2)
+        end if
+
+        rank_y = int((j_max-1)/grid_Ndims(2))
+
+        if (rank_y == mpi_coords(2)) then
+            this%j_max_in_this_rank = .true.
+            this%j_max_loc          = j_max - rank_y*grid_Ndims(2)
+        end if
+
+    end if
+
+    if (this%dim == 3) then
+
+        rank_z = int((k_min-1)/grid_Ndims(3))
+
+        if (rank_z == mpi_coords(3)) then
+            this%k_min_in_this_rank = .true.
+            this%k_min_loc          = k_min - rank_z*grid_Ndims(3)
+        end if
+
+        rank_z = int((k_max-1)/grid_Ndims(3))
+
+        if (rank_z == mpi_coords(3)) then
+            this%k_max_in_this_rank = .true.
+            this%k_max_loc          = k_max - rank_z*grid_Ndims(3)
+        end if
+
+    end if
 
     select case (this%dim)
     case (1)
@@ -878,11 +998,11 @@ subroutine compute_time_space_profile(this, time, i_ndx, j_ndx, k_ndx, di, dj, d
     integer             , intent(in)    :: j_ndx
     integer             , intent(in)    :: nx
     integer             , intent(in)    :: ny
-
-    integer , optional, intent(in) :: k_ndx
+    
     real(dp), optional, intent(in) :: di
     real(dp), optional, intent(in) :: dj
     real(dp), optional, intent(in) :: dk
+    integer , optional, intent(in) :: k_ndx
     integer , optional, intent(in) :: nz
 
     integer     :: dim
@@ -892,12 +1012,9 @@ subroutine compute_time_space_profile(this, time, i_ndx, j_ndx, k_ndx, di, dj, d
     real(dp)    :: di_in, dj_in, dk_in
     real(dp)    :: r
     real(dp)    :: z
-    real(dp)    :: cos_phi, sin_phi, cos_psi, sin_psi
     real(dp)    :: envelope
     real(dp)    :: z_ramp
     real(dp)    :: z0_ramp
-    real(dp)    :: z_min
-    real(dp)    :: z_max
     real(dp)    :: dz_ramp
     real(dp)    :: w_z
     real(dp)    :: inv_R_z
@@ -948,21 +1065,18 @@ subroutine compute_time_space_profile(this, time, i_ndx, j_ndx, k_ndx, di, dj, d
 
     z_ramp = time*c0 + z0_ramp
 
-    z_min = z_ramp - 0.5_dp*dz_ramp
-    z_max = z_ramp + 0.5_dp*dz_ramp
-
     envelope = EXP(-(z-z_ramp)**2/(2*dz_ramp**2))
 
-    E_t   = this%E_amp * envelope * (DCOS(this%freq*(time)) + Z_I*DSIN(this%freq*(time)))
+    E_t   = this%E_amp * envelope * (DCOS(this%freq*time + this%phase) + &
+                                     Z_I*DSIN(this%freq*time + this%phase))
 
     w_z   = this%w0*SQRT(1.0d0 + (z/this%z_R)**2)
     inv_R_z = z/(z**2 + this%z_R**2)
     psi_z = ATAN(z/this%z_R)
 
-    !E_rz = (this%w0/w_z)*EXP(-r**2/w_z**2)*(DCOS(this%k*z + (this%k*r**2)*(0.5d0*inv_R_z)-psi_z) &
-    !                                  - Z_I*DSIN(this%k*z + (this%k*r**2)*(0.5d0*inv_R_z)-psi_z))
-
-    E_rz = (DCOS(this%k*z) - Z_I*DSIN(this%k*z))
+    E_rz = (this%w0/w_z)*EXP(-r**2/w_z**2) * &
+           (DCOS(this%k*z + 0.5d0*this%k*r**2*inv_R_z - psi_z) - &
+            Z_I*DSIN(this%k*z + 0.5d0*this%k*r**2*inv_R_z - psi_z))
 
     this%E_rzt = E_t * E_rz
 

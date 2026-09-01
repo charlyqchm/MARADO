@@ -14,6 +14,7 @@ program mxim_mxll
     implicit none
 
     class(TMxll)   ,allocatable :: mxll
+    class(TMxll)   ,allocatable :: mxll_aux
     type(TQ_group) ,allocatable :: q_groups(:)
     type(TDetector),allocatable :: detectors(:)
     type(TSources_list)         :: sources
@@ -65,6 +66,14 @@ program mxim_mxll
 
     call mxll%init(grid_Ndims, npml, boundaries, dt, dr, mode_2D, n_media, mpi_coords, mpi_dims) 
     
+    if (sources%n_gb_src > 0) then
+
+        mxll_aux = maxwell_factory(dimensions)
+        call mxll_aux%init(grid_Ndims, npml, boundaries, dt, dr, mode_2D, 0, &
+                           mpi_coords, mpi_dims)
+ 
+    end if
+    
     call init_detectors_outputs(n_detectors, t_det_print, dt_det_print, detectors, dimensions, &
                                 grid_Ndims, mxll%mode, dr, dt, mpi_dims, mpi_coords, myrank)
 
@@ -107,20 +116,45 @@ program mxim_mxll
         call exchange_E_field_between_ranks(mxll)
         
         call plane_waves_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
-        
+
+        if (sources%n_gb_src > 0) then
+            call between_grids_E_interaction(mxll, mxll_aux, sources, mpi_coords, mpi_dims, time)
+        end if
+
         call mxll%td_propagate_H_field()   
         
         call sources%propagate_pw_srcs(time)
-        
+
+        ! Propagation of the Gaussian beam sources is done in a separate 
+        ! grid.
+
+        if (sources%n_gb_src > 0) then
+
+            call exchange_E_field_between_ranks(mxll_aux)
+
+            call gaussbeam_E_interactions(mxll_aux, sources, mpi_coords, mpi_dims, time)
+            
+            call mxll_aux%td_propagate_H_field()
+            
+            call exchange_H_field_between_ranks(mxll_aux)
+
+            call gaussbeam_H_interactions(mxll_aux, sources, mpi_coords, mpi_dims, time)
+
+            call mxll_aux%td_propagate_E_field(tt)
+
+        end if
+
         call exchange_H_field_between_ranks(mxll)
         
         call plane_waves_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
+        
+        if (sources%n_gb_src > 0) then
+            call between_grids_H_interaction(mxll, mxll_aux, sources, mpi_coords, mpi_dims, time)
+        end if
+
         call point_source_interactions(mxll, sources)
         
-        
         call mxll%td_propagate_E_field(tt)
-        
-        call gaussbeam_interactions(mxll, sources, mpi_coords, mpi_dims, time)
         
         call expand_E_field_between_ranks(mxll, move_q_system)
         
@@ -144,6 +178,8 @@ program mxim_mxll
     call sources%kill_sources()
     
     call mxll%kill()
+    call mxll_aux%kill()
+
     do i = 1, n_q_groups
         call q_groups(i)%kill_q_group()
     end do
