@@ -107,20 +107,20 @@ program mxim_mxll
         call exchange_E_field_between_ranks(mxll)
         
         call plane_waves_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
-        
+
         call mxll%td_propagate_H_field()   
         
         call sources%propagate_pw_srcs(time)
-        
+
         call exchange_H_field_between_ranks(mxll)
         
         call plane_waves_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
+        
         call point_source_interactions(mxll, sources)
-        
-        
+       
+        call gaussbeam_J_interactions(mxll, sources, mpi_coords, mpi_dims, time)
+
         call mxll%td_propagate_E_field(tt)
-        
-        call gaussbeam_interactions(mxll, sources, mpi_coords, mpi_dims, time)
         
         call expand_E_field_between_ranks(mxll, move_q_system)
         
@@ -144,6 +144,7 @@ program mxim_mxll
     call sources%kill_sources()
     
     call mxll%kill()
+
     do i = 1, n_q_groups
         call q_groups(i)%kill_q_group()
     end do

@@ -107,6 +107,7 @@ subroutine read_input_file(boundaries, mode_2D, dimensions, npml, grid_Ndims, &
     grid_Ndims(1)  = int(mxll_box_size(1)/mxll_dr)
     grid_Ndims(2)  = int(mxll_box_size(2)/mxll_dr)
     grid_Ndims(3)  = int(mxll_box_size(3)/mxll_dr)
+
 #endif
 
     dimensions     = mxll_dimensions

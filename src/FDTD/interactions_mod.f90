@@ -11,7 +11,6 @@ module interactions_mod
     use mxll_2D_mod
     use mxll_3D_mod
     use q_group_mod
-    use classical_medium_mod, only: TClassicalMedium, modify_polarization
 
     implicit none
 
@@ -1202,10 +1201,6 @@ subroutine plane_waves_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
                 j0 = ny*mpi_coords(2)
                 k0 = nz*mpi_coords(3)
 
-                i_min_loc = sources%plane_waves(s)%i_min_loc
-
-                P_vec(1) = (i_min - 0.5d0 - INT(mpi_dims(1)*nx/2))*dr_main
-                
                 j0 = ny*mpi_coords(2)
                 k0 = nz*mpi_coords(3)
 
@@ -1560,7 +1555,7 @@ end subroutine plane_waves_H_interactions
 
 !###################################################################################################
 
-subroutine gaussbeam_interactions(mxll, sources, mpi_coords, mpi_dims, time)
+subroutine gaussbeam_J_interactions(mxll, sources, mpi_coords, mpi_dims, time)
 
     class(TMxll)       , intent(inout) :: mxll
     type(TSources_list), intent(inout) :: sources
@@ -1568,303 +1563,369 @@ subroutine gaussbeam_interactions(mxll, sources, mpi_coords, mpi_dims, time)
     integer            , intent(in)    :: mpi_dims(3)
     real(dp)           , intent(in)    :: time
 
-    integer  :: i, j, k, s
-    integer  :: idx
-    real(dp) :: E1, E0
+    integer  :: s, i, j, k, h, l
+    integer  :: i_min, i_max, j_min, j_max, k_min, k_max
+    integer  :: l_min, l_max, h_min, h_max
+    integer  :: i0, j0, k0
+    integer  :: ii, jj, kk
+    integer  :: n_ker
+    real(dp) :: x, y, z
+    real(dp) :: x0, y0, z0
+    real(dp) :: dr
     real(dp) :: c_src
-    real(dp) :: dt
-
-    dt    = mxll%dt
-    c_src = mxll%dt/mxll%dr/c0/2.0d0
+    real(dp) :: sig
+    real(dp) :: norm
+    real(dp) :: time_E
+    real(dp) :: v1_vec(3)
+    real(dp) :: v3_vec(3)
+    real(dp) :: r_src(3)
+    real(dp) :: smooth
 
     select type(mxll)
     class is(TMxll_1D)
-        !No gauss beam sources in 1D
+        ! No Gaussian beam sources in 1D.
     class is(TMxll_2D)
+
+        c_src = mxll%dt/mxll%dr * 2.0 * c0
+        time_E = time - 0.5d0*mxll%dt
 
         do s = 1, sources%n_gb_src
 
-            do j = 1, mxll%ny
-            do i = 1, mxll%nx
-                idx = mxll%media_map(i,j,1)
-                if (idx/=0 .and. (mxll%mode == TEZ_2D_MODE .or. &
-                    mxll%mode == FULL_2D_MODE)) then
+            if (sources%gauss_beams(s)%turn_off) cycle
 
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, i_ndx=i, &
-                                                j_ndx=j, di=0.5_dp, nx=mxll%nx, ny=mxll%ny, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+            dr    = sources%gauss_beams(s)%dr
+            sig   = dr
+            i_min = 1 + mxll%nx * mpi_coords(1)
+            i_max = mxll%nx * (mpi_coords(1) + 1)
+            j_min = 1 + mxll%ny * mpi_coords(2)
+            j_max = mxll%ny * (mpi_coords(2) + 1)
 
-                    E0 = sources%gauss_beams(s)%E_vec(1)
-                    
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time+dt, &
-                                 i_ndx=i, j_ndx=j, di=0.5_dp, nx=mxll%nx, ny=mxll%ny, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+            l_min = sources%gauss_beams(s)%l_min
+            l_max = sources%gauss_beams(s)%l_max
 
-                    E1 = sources%gauss_beams(s)%E_vec(1)
-                    
-                    call modify_polarization(mxll%media, idx, mxll%PDx(i,j), mxll%PLx(i,j,:), &
-                                             E1, E0)
-                    
-                end if
+            v1_vec = sources%gauss_beams(s)%v1_vec
+            r_src = sources%gauss_beams(s)%r_src
 
-                if (mxll%media_map(i,j,2)/=0 .and. (mxll%mode == TEZ_2D_MODE .or. &
-                    mxll%mode == FULL_2D_MODE)) then
+            n_ker = sources%gauss_beams(s)%n_ker
 
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, i_ndx=i, &
-                                                j_ndx=j, dj=0.5_dp, nx=mxll%nx, ny=mxll%ny, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+            if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
 
-                    E0 = sources%gauss_beams(s)%E_vec(2)
+                do l = l_min, l_max
 
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time+dt, &
-                                 i_ndx=i, j_ndx=j, dj=0.5_dp, nx=mxll%nx, ny=mxll%ny, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                    x0 = r_src(1) + l*dr*v1_vec(1)
+                    y0 = r_src(2) + l*dr*v1_vec(2)
 
-                    E1 = sources%gauss_beams(s)%E_vec(2)
+                    call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                                 x=x0, y=y0, nx=mxll%nx, ny=mxll%ny,                      &
+                                 mpi_coords=mpi_coords, mpi_dims=mpi_dims)
 
-                    call modify_polarization(mxll%media, idx, mxll%PDy(i,j), mxll%PLy(i,j,:), &
-                                             E1, E0)
+                    i0 = INT(x0/dr) + INT(mpi_dims(1) * mxll%nx/2)
+                    j0 = INT(y0/dr) + INT(mpi_dims(2) * mxll%ny/2)
 
-                end if
+                    norm = 0.0d0
 
-                if (mxll%media_map(i,j,3)/=0 .and. (mxll%mode == TMZ_2D_MODE .or. &
-                    mxll%mode == FULL_2D_MODE)) then
+                    do jj = -n_ker, n_ker
+                    do ii = -n_ker, n_ker
+                        x = (i0+ii - INT(mpi_dims(1) * mxll%nx/2))*dr - x0
+                        y = (j0+jj - INT(mpi_dims(2) * mxll%ny/2))*dr - y0
+                        smooth = EXP(-(x**2 + y**2)/(2.0d0*sig**2))
+                        norm   = norm + smooth
+                    end do
+                    end do
 
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, i_ndx=i, &
-                                                j_ndx=j, nx=mxll%nx, ny=mxll%ny, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                    norm = 1.0d0/norm
 
-                    E0 = sources%gauss_beams(s)%E_vec(3)
+                    do jj = -n_ker, n_ker
+                        if (j0+jj < j_min .or. j0+jj > j_max) cycle
+                        do ii = -n_ker, n_ker
+                            if (ii+i0 < i_min .or. ii+i0 > i_max) cycle
 
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time+dt, &
-                                 i_ndx=i, j_ndx=j, dk=0.5_dp, nx=mxll%nx, ny=mxll%ny, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                                x = (i0+ii - INT(mpi_dims(1) * mxll%nx/2))*dr - x0
+                                y = (j0+jj - INT(mpi_dims(2) * mxll%ny/2))*dr - y0
+    
+                                smooth = c_src*norm*EXP(-(x**2 + y**2)/(2.0d0*sig**2))
 
-                    E1 = sources%gauss_beams(s)%E_vec(3)
+                                i = i0 + ii - i_min + 1
+                                j = j0 + jj - j_min + 1
 
-                    call modify_polarization(mxll%media, idx, mxll%PDz(i,j), mxll%PLz(i,j,:), &
-                                             E1, E0)
+                                mxll%Ez(i,j) = mxll%Ez(i,j) + smooth*sources%gauss_beams(s)%E_vec(3)
 
-                end if
+                        end do
+                    end do
 
-            end do
-            end do
+                end do
+            
+            end if
+
+            if (mxll%mode == TEZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+                do l = l_min, l_max
+
+                    x0 = r_src(1) + l*dr*v1_vec(1)
+                    y0 = r_src(2) + l*dr*v1_vec(2)
+
+                    call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                                 x=x0, y=y0, nx=mxll%nx, ny=mxll%ny,                      &
+                                 mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+
+                    i0 = INT(x0/dr) + INT(mpi_dims(1) * mxll%nx/2)
+                    j0 = INT(y0/dr) + INT(mpi_dims(2) * mxll%ny/2)
+
+                    norm = 0.0d0
+
+                    do jj = -n_ker, n_ker
+                    do ii = -n_ker, n_ker
+
+                        x = (i0+ii+0.5 - INT(mpi_dims(1) * mxll%nx/2))*dr - x0
+                        y = (j0+jj - INT(mpi_dims(2) * mxll%ny/2))*dr - y0
+
+                        smooth = EXP(-(x**2 + y**2)/(2.0d0*sig**2))
+                        norm   = norm + smooth
+
+                    end do
+                    end do
+
+                    norm = 1.0d0/norm
+
+                    do jj = -n_ker, n_ker
+                        if (j0+jj < j_min .or. j0+jj > j_max) cycle
+                        do ii = -n_ker, n_ker
+                            if (ii+i0 < i_min .or. ii+i0 > i_max) cycle
+
+                                x = (i0+ii+0.5 - INT(mpi_dims(1) * mxll%nx/2))*dr - x0
+                                y = (j0+jj - INT(mpi_dims(2) * mxll%ny/2))*dr - y0
+
+                                smooth = c_src*norm*EXP(-(x**2 + y**2)/(2.0d0*sig**2))
+
+                                i = i0 + ii - i_min + 1
+                                j = j0 + jj - j_min + 1
+
+                                mxll%Ex(i,j) = mxll%Ex(i,j) + smooth*sources%gauss_beams(s)%E_vec(1)
+
+                        end do
+                    end do
+
+                    norm = 0.0d0
+
+                    do jj = -n_ker, n_ker
+                    do ii = -n_ker, n_ker
+
+                        x = (i0+ii - INT(mpi_dims(1) * mxll%nx/2))*dr - x0
+                        y = (j0+jj+0.5 - INT(mpi_dims(2) * mxll%ny/2))*dr - y0
+
+                        smooth = EXP(-(x**2 + y**2)/(2.0d0*sig**2))
+                        norm   = norm + smooth
+
+                    end do
+                    end do
+
+                    norm = 1.0d0/norm
+
+                    do jj = -n_ker, n_ker
+                        if (j0+jj < j_min .or. j0+jj > j_max) cycle
+                        do ii = -n_ker, n_ker
+                            if (ii+i0 < i_min .or. ii+i0 > i_max) cycle
+
+                                x = (i0+ii - INT(mpi_dims(1) * mxll%nx/2))*dr - x0
+                                y = (j0+jj+0.5 - INT(mpi_dims(2) * mxll%ny/2))*dr - y0
+
+                                smooth = c_src*norm*EXP(-(x**2 + y**2)/(2.0d0*sig**2))
+
+                                i = i0 + ii - i_min + 1
+                                j = j0 + jj - j_min + 1
+
+                                mxll%Ey(i,j) = mxll%Ey(i,j) + smooth*sources%gauss_beams(s)%E_vec(2)
+
+                        end do
+                    end do
+
+                end do
+
+
+            end if
+
         end do
+
 
     class is(TMxll_3D)
 
+        c_src = mxll%dt/mxll%dr * 2.0 * c0
+
+        time_E = time - 0.5d0*mxll%dt
+
         do s = 1, sources%n_gb_src
 
-            do k = 1, mxll%nz
-            do j = 1, mxll%ny
-            do i = 1, mxll%nx
+            dr    = sources%gauss_beams(s)%dr
+            sig   = dr
+            i_min = 1 + mxll%nx * mpi_coords(1)
+            i_max = mxll%nx * (mpi_coords(1) + 1)
+            j_min = 1 + mxll%ny * mpi_coords(2)
+            j_max = mxll%ny * (mpi_coords(2) + 1)
+            k_min = 1 + mxll%nz * mpi_coords(3)
+            k_max = mxll%nz * (mpi_coords(3) + 1)
 
-                if (mxll%media_map(i,j,k,1)/=0) then
+            l_min = sources%gauss_beams(s)%l_min
+            l_max = sources%gauss_beams(s)%l_max
 
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, i_ndx=i, &
-                                                j_ndx=j, k_ndx=k, di=0.5_dp, &
-                                                nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+            h_min = sources%gauss_beams(s)%h_min
+            h_max = sources%gauss_beams(s)%h_max
 
-                    E0 = sources%gauss_beams(s)%E_vec(1)
+            v1_vec = sources%gauss_beams(s)%v1_vec
+            v3_vec = sources%gauss_beams(s)%v3_vec
+            r_src = sources%gauss_beams(s)%r_src
 
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time+dt, &
-                                 i_ndx=i, j_ndx=j, k_ndx=k, di=0.5_dp, &
-                                                nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+            n_ker = sources%gauss_beams(s)%n_ker
 
-                    E1 = sources%gauss_beams(s)%E_vec(1)
+            do l = l_min, l_max
+            do h = h_min, h_max
 
-                    call modify_polarization(mxll%media, idx, mxll%PDx(i,j,k), mxll%PLx(i,j,k,:), &
-                                             E1, E0)
+                x0 = r_src(1) + v1_vec(1) * l * dr + v3_vec(1) * h * dr
+                y0 = r_src(2) + v1_vec(2) * l * dr + v3_vec(2) * h * dr
+                z0 = r_src(3) + v1_vec(3) * l * dr + v3_vec(3) * h * dr
 
-                end if
+                call sources%gauss_beams(s)%compute_time_space_profile(time=time_E, &
+                                 x=x0, y=y0, z=z0, nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, &
+                                 mpi_coords=mpi_coords, mpi_dims=mpi_dims)
 
-                if (mxll%media_map(i,j,k,2)/=0) then
+                i0 = INT(x0/dr) + INT(mpi_dims(1) * mxll%nx/2)
+                j0 = INT(y0/dr) + INT(mpi_dims(2) * mxll%ny/2)
+                k0 = INT(z0/dr) + INT(mpi_dims(3) * mxll%nz/2)
 
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, i_ndx=i, &
-                                                j_ndx=j, k_ndx=k, dj=0.5_dp, &
-                                                nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                norm = 0.0d0
 
-                    E0 = sources%gauss_beams(s)%E_vec(2)
+                do kk = -n_ker, n_ker
+                do jj = -n_ker, n_ker
+                do ii = -n_ker, n_ker
 
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time+dt, &
-                                 i_ndx=i, j_ndx=j, k_ndx=k, dj=0.5_dp, &
-                                                nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                    x = (i0+ii+0.5 - INT(mpi_dims(1) * mxll%nx/2))*dr - x0
+                    y = (j0+jj - INT(mpi_dims(2) * mxll%ny/2))*dr - y0
+                    z = (k0+kk - INT(mpi_dims(3) * mxll%nz/2))*dr - z0
 
-                    E1 = sources%gauss_beams(s)%E_vec(2)
+                    smooth = EXP(-(x**2 + y**2 + z**2)/(2.0d0*sig**2))
+                    norm   = norm + smooth
 
-                    call modify_polarization(mxll%media, idx, mxll%PDy(i,j,k), mxll%PLy(i,j,k,:), &
-                                             E1, E0)
+                end do
+                end do
+                end do
 
-                end if
+                norm = 1.0d0/norm
 
-                if (mxll%media_map(i,j,k,3)/=0) then
+                do kk = -n_ker, n_ker
+                    if (k0+kk < k_min .or. k0+kk > k_max) cycle
+                    do jj = -n_ker, n_ker
+                        if (j0+jj < j_min .or. j0+jj > j_max) cycle
+                        do ii = -n_ker, n_ker
+                            if (i0+ii < i_min .or. i0+ii > i_max) cycle
 
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, i_ndx=i, &
-                                                j_ndx=j, k_ndx=k, dk=0.5_dp, &
-                                                nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                            x = (i0+ii+0.5 - INT(mpi_dims(1) * mxll%nx/2))*dr - x0
+                            y = (j0+jj - INT(mpi_dims(2) * mxll%ny/2))*dr - y0
+                            z = (k0+kk - INT(mpi_dims(3) * mxll%nz/2))*dr - z0
 
-                    E0 = sources%gauss_beams(s)%E_vec(3)
+                            smooth = c_src*norm*EXP(-(x**2 + y**2 + z**2)/(2.0d0*sig**2))
 
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time+dt, &
-                                 i_ndx=i, j_ndx=j, k_ndx=k, dk=0.5_dp, &
-                                                nx=mxll%nx, ny=mxll%ny, nz=mxll%nz, &
-                                                mpi_coords=mpi_coords, mpi_dims=mpi_dims)
+                            i = i0 + ii - i_min + 1
+                            j = j0 + jj - j_min + 1
+                            k = k0 + kk - k_min + 1
 
-                    E1 = sources%gauss_beams(s)%E_vec(3)
+                            mxll%Ex(i,j,k) = mxll%Ex(i,j,k) + smooth*sources%gauss_beams(s)%E_vec(1)
 
-                    call modify_polarization(mxll%media, idx, mxll%PDz(i,j,k), mxll%PLz(i,j,k,:), &
-                                             E1, E0)
+                        end do
+                    end do
+                end do
 
-                end if
+                norm = 0.0d0
+
+                do kk = -n_ker, n_ker
+                do jj = -n_ker, n_ker
+                do ii = -n_ker, n_ker
+
+                    x = (i0+ii - INT(mpi_dims(1) * mxll%nx/2))*dr - x0
+                    y = (j0+jj+0.5 - INT(mpi_dims(2) * mxll%ny/2))*dr - y0
+                    z = (k0+kk - INT(mpi_dims(3) * mxll%nz/2))*dr - z0
+
+                    smooth = EXP(-(x**2 + y**2 + z**2)/(2.0d0*sig**2))
+                    norm   = norm + smooth
+
+                end do
+                end do
+                end do
+
+                norm = 1.0d0/norm
+
+                do kk = -n_ker, n_ker
+                    if (k0+kk < k_min .or. k0+kk > k_max) cycle
+                    do jj = -n_ker, n_ker
+                        if (j0+jj < j_min .or. j0+jj > j_max) cycle
+                        do ii = -n_ker, n_ker
+                            if (i0+ii < i_min .or. i0+ii > i_max) cycle
+
+                            x = (i0+ii - INT(mpi_dims(1) * mxll%nx/2))*dr - x0
+                            y = (j0+jj+0.5 - INT(mpi_dims(2) * mxll%ny/2))*dr - y0
+                            z = (k0+kk - INT(mpi_dims(3) * mxll%nz/2))*dr - z0
+
+                            smooth = c_src*norm*EXP(-(x**2 + y**2 + z**2)/(2.0d0*sig**2))
+
+                            i = i0 + ii - i_min + 1
+                            j = j0 + jj - j_min + 1
+                            k = k0 + kk - k_min + 1
+
+                            mxll%Ey(i,j,k) = mxll%Ey(i,j,k) + smooth*sources%gauss_beams(s)%E_vec(2)
+
+                        end do
+                    end do
+                end do
+
+
+                norm = 0.0d0
+
+                do kk = -n_ker, n_ker
+                do jj = -n_ker, n_ker
+                do ii = -n_ker, n_ker
+
+                    x = (i0+ii - INT(mpi_dims(1) * mxll%nx/2))*dr - x0
+                    y = (j0+jj+0.5 - INT(mpi_dims(2) * mxll%ny/2))*dr - y0
+                    z = (k0+kk - INT(mpi_dims(3) * mxll%nz/2))*dr - z0
+
+                    smooth = EXP(-(x**2 + y**2 + z**2)/(2.0d0*sig**2))
+                    norm   = norm + smooth
+
+                end do
+                end do
+                end do
+
+                norm = 1.0d0/norm
+
+                do kk = -n_ker, n_ker
+                    if (k0+kk < k_min .or. k0+kk > k_max) cycle
+                    do jj = -n_ker, n_ker
+                        if (j0+jj < j_min .or. j0+jj > j_max) cycle
+                        do ii = -n_ker, n_ker
+                            if (i0+ii < i_min .or. i0+ii > i_max) cycle
+
+                            x = (i0+ii - INT(mpi_dims(1) * mxll%nx/2))*dr - x0
+                            y = (j0+jj - INT(mpi_dims(2) * mxll%ny/2))*dr - y0
+                            z = (k0+kk+0.5 - INT(mpi_dims(3) * mxll%nz/2))*dr - z0
+
+                            smooth = c_src*norm*EXP(-(x**2 + y**2 + z**2)/(2.0d0*sig**2))
+
+                            i = i0 + ii - i_min + 1
+                            j = j0 + jj - j_min + 1
+                            k = k0 + kk - k_min + 1
+
+                            mxll%Ez(i,j,k) = mxll%Ez(i,j,k) + smooth*sources%gauss_beams(s)%E_vec(3)
+
+                        end do
+                    end do
+                end do
 
             end do
             end do
-            end do 
 
         end do
-    
+
     end select
 
-end subroutine gaussbeam_interactions
-!###################################################################################################
-
-subroutine gaussbeam_q_interactions(time, sources, q_group, move_q_system, dt, dr, &
-                                    mpi_coords, mpi_dims, grid_Ndims, dims , mode)
-    type(TSources_list) , intent(inout) :: sources
-    type(TQ_Group)      , intent(inout) :: q_group
-    logical             , intent(in)    :: move_q_system
-    integer             , intent(in)    :: mpi_coords(3)
-    integer             , intent(in)    :: mpi_dims(3)
-    integer             , intent(in)    :: grid_Ndims(3)
-    integer             , intent(in)    :: dims
-    integer             , intent(in)    :: mode
-    real(dp)            , intent(in)    :: time
-    real(dp)            , intent(in)    :: dt
-    real(dp)            , intent(in)    :: dr
-
-    integer     :: i_idx, j_idx, k_idx
-    integer     :: n, s, n_mol
-    integer     :: nx, ny, nz
-    real(dp)    :: E_vec(3)
-
-    nx = grid_Ndims(1)
-    ny = grid_Ndims(2)
-    nz = grid_Ndims(3)
-
-    if (.not. move_q_system) return
-
-    select case(q_group%group_type)
-    case(Q_MATERIAL)
-
-        select case(dims)
-        case(1)
-            !No gauss beam sources in 1D
-        case(2)
-
-            do s = 1, sources%n_gb_src
-
-                do n = 1, q_group%n_systems
-                        
-                    n_mol = n
-                    i_idx = q_group%map(n,3)
-                    j_idx = q_group%map(n,4)
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time, &
-                                 i_ndx=i_idx, j_ndx=j_idx, nx=nx, ny=ny,              &
-                                 mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E_vec = sources%gauss_beams(s)%E_vec
-
-                    q_group%E_field_list(n_mol, 1) = q_group%E_field_list(n_mol, 1) + E_vec(1)
-                    q_group%E_field_list(n_mol, 2) = q_group%E_field_list(n_mol, 2) + E_vec(2)
-                    q_group%E_field_list(n_mol, 3) = q_group%E_field_list(n_mol, 3) + E_vec(3)
-                
-                end do
-
-            end do
-
-        case(3)
-            do s = 1, sources%n_gb_src
-
-                do n = 1, q_group%n_systems
-                    
-                    n_mol = n
-                    i_idx = q_group%map(n,3)
-                    j_idx = q_group%map(n,4)
-                    k_idx = q_group%map(n,5)
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time,        &
-                                 i_ndx=i_idx, j_ndx=j_idx, k_ndx=k_idx, nx=nx, ny=ny, nz=nz, &
-                                 mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E_vec = sources%gauss_beams(s)%E_vec
-
-                    q_group%E_field_list(n_mol, 1) = q_group%E_field_list(n_mol, 1) + E_vec(1)
-                    q_group%E_field_list(n_mol, 2) = q_group%E_field_list(n_mol, 2) + E_vec(2)
-                    q_group%E_field_list(n_mol, 3) = q_group%E_field_list(n_mol, 3) + E_vec(3)
-
-                end do
-            end do
-
-        end select
-
-    case(Q_SINGLE)
-        select case(dims)
-        case(1)
-            !No gauss beam sources in 1D
-        case(2)
-            do s = 1,  sources%n_gb_src
-
-                do n = 1, q_group%n_systems
-                    
-                    n_mol = n
-                    i_idx = q_group%kernel_map(n,0,0,0,3)
-                    j_idx = q_group%kernel_map(n,0,0,0,4)
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time,   &
-                                 i_ndx=i_idx, j_ndx=j_idx, nx=nx, ny=ny,                &
-                                 mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E_vec = sources%gauss_beams(s)%E_vec
-
-                    q_group%E_field_list(n_mol, 1) = q_group%E_field_list(n_mol, 1) + E_vec(1)
-                    q_group%E_field_list(n_mol, 2) = q_group%E_field_list(n_mol, 2) + E_vec(2)
-                    q_group%E_field_list(n_mol, 3) = q_group%E_field_list(n_mol, 3) + E_vec(3)
-
-                end do
-            end do
-        case(3)
-            do s = 1, sources%n_gb_src
-
-                do n = 1, q_group%n_systems
-                    
-                    n_mol = n
-                    i_idx = q_group%kernel_map(n,0,0,0,3)
-                    j_idx = q_group%kernel_map(n,0,0,0,4)
-                    k_idx = q_group%kernel_map(n,0,0,0,5)
-
-                    call sources%gauss_beams(s)%compute_time_space_profile(time=time,   &
-                                 i_ndx=i_idx, j_ndx=j_idx, k_ndx=k_idx, nx=nx, ny=ny, nz=nz, &
-                                 mpi_coords=mpi_coords, mpi_dims=mpi_dims)
-
-                    E_vec = sources%gauss_beams(s)%E_vec
-
-                    q_group%E_field_list(n_mol, 1) = q_group%E_field_list(n_mol, 1) + E_vec(1)
-                    q_group%E_field_list(n_mol, 2) = q_group%E_field_list(n_mol, 2) + E_vec(2)
-                    q_group%E_field_list(n_mol, 3) = q_group%E_field_list(n_mol, 3) + E_vec(3)
-                    
-                end do
-            end do
-        end select
-    
-    end select
-
-end subroutine gaussbeam_q_interactions
+end subroutine gaussbeam_J_interactions
 
 !###################################################################################################
 
