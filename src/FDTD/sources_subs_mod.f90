@@ -104,6 +104,8 @@ module sources_subs_mod
         complex(dp)         :: E_rzt
         real(dp)            :: E_amp
         integer             :: dim
+        integer             :: n_ker
+        logical             :: turn_off
         !Assuming the k vector is initially parallel to z, the E field to x and the H field to y,
         !phi is the angle respect to x, theta is the angle respect to z and psi is the angle
         !of rotation of the E field respect to the plane defined by k and z.  
@@ -121,8 +123,7 @@ module sources_subs_mod
         real(dp)            :: v3_vec(3)
         real(dp)            :: freq
         real(dp)            :: t0
-        real(dp)            :: dz_ramp
-        real(dp)            :: z0_ramp
+        real(dp)            :: tau
         real(dp)            :: phase
         real(dp)            :: w0
         real(dp)            :: z_R
@@ -131,15 +132,11 @@ module sources_subs_mod
         real(dp)            :: lambda
         real(dp)            :: k
         real(dp)            :: E_vec(3)
-        integer             :: i_min, i_max
-        integer             :: j_min, j_max
-        integer             :: k_min, k_max
-        integer             :: i_min_loc, i_max_loc
-        integer             :: j_min_loc, j_max_loc
-        integer             :: k_min_loc, k_max_loc
-        logical             :: i_min_in_this_rank, i_max_in_this_rank
-        logical             :: j_min_in_this_rank, j_max_in_this_rank
-        logical             :: k_min_in_this_rank, k_max_in_this_rank
+        real(dp)            :: lenght
+        real(dp)            :: height
+        integer             :: l_min, l_max
+        integer             :: h_min, h_max
+
 
     contains
 
@@ -799,8 +796,8 @@ subroutine init_gaussbeam_src(this, input_ch, dim, mode_2D, dt, dr, grid_Ndims, 
     real(dp)           :: theta
     real(dp)           :: psi
     real(dp)           :: freq
-    real(dp)           :: dz_ramp
-    real(dp)           :: z0_ramp
+    real(dp)           :: tau
+    real(dp)           :: t0
     real(dp)           :: phase
     real(dp)           :: r0(3)
     real(dp)           :: w0
@@ -809,17 +806,19 @@ subroutine init_gaussbeam_src(this, input_ch, dim, mode_2D, dt, dr, grid_Ndims, 
     real(dp)           :: psi_z
     real(dp)           :: sigma
     real(dp)           :: uz_vec(3) = (/0.0d0, 0.0d0, 1.0d0/)
-    real(dp)           :: x_min, x_max
-    real(dp)           :: y_min, y_max
-    real(dp)           :: z_min, z_max
+    real(dp)           :: lenght
+    real(dp)           :: height
+    real(dp)           :: d_src
 
     read(input_ch, *) type_src_ch, E_amp, phi, theta, psi, freq, &             
-                      phase, r0(1), r0(2), r0(3), w0, dz_ramp, z0_ramp, &
-                      x_min, x_max, y_min, y_max, z_min, z_max
+                      phase, r0(1), r0(2), r0(3), w0, t0, tau, &
+                      d_src, lenght, height
 
     this%dim   = dim
     this%E_amp = E_amp
     this%dr    = dr
+
+    this%n_ker = 2
 
     this%phi    = phi/180.0d0*pi0
     this%theta  = theta/180.0d0*pi0
@@ -836,114 +835,11 @@ subroutine init_gaussbeam_src(this, input_ch, dim, mode_2D, dt, dr, grid_Ndims, 
     this%lambda  = 2*pi0*c0/this%freq
     this%k       = 2*pi0/this%lambda
     this%z_R     = pi0*this%w0**2/this%lambda
-    this%dz_ramp = dz_ramp * nm_to_au
-    this%z0_ramp = z0_ramp * nm_to_au
+    this%t0     = t0 * fs_to_au
+    this%tau    = tau * fs_to_au
 
-    x_min  = x_min * nm_to_au
-    x_max  = x_max * nm_to_au
-    y_min  = y_min * nm_to_au
-    y_max  = y_max * nm_to_au
-    z_min  = z_min * nm_to_au
-    z_max  = z_max * nm_to_au
-
-    if (x_min < (1-int(grid_Ndims(1)*mpi_dims(1)/2))*dr .or. x_max > (int(grid_Ndims(1)*mpi_dims(1)/2))*dr) then
-        write (*, '("Error: the plane wave source extends beyond the simulation box in x direction &
-                & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(1)*mpi_dims(1)/2))*dr/nm_to_au, &
-                                                  (int(grid_Ndims(1)*mpi_dims(1)/2))*dr/nm_to_au
-        error stop
-    end if
-
-    if (dim > 1) then
-
-        if (y_min < (1-int(grid_Ndims(2)*mpi_dims(2)/2))*dr .or. y_max > (int(grid_Ndims(2)*mpi_dims(2)/2))*dr) then
-            write (*, '("Error: the plane wave source extends beyond the simulation box in y direction &
-                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(2)*mpi_dims(2)/2))*dr/nm_to_au, &
-                                                    (int(grid_Ndims(2)*mpi_dims(2)/2))*dr/nm_to_au
-            error stop
-        end if
-
-    end if
-
-    if (dim == 3) then
-
-        if (z_min < (1-int(grid_Ndims(3)*mpi_dims(3)/2))*dr .or. z_max > (int(grid_Ndims(3)*mpi_dims(3)/2))*dr) then
-            write (*, '("Error: the plane wave source extends beyond the simulation box in z direction &
-                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(3)*mpi_dims(3)/2))*dr/nm_to_au, &
-                                                    (int(grid_Ndims(3)*mpi_dims(3)/2))*dr/nm_to_au
-            error stop
-        end if
-    end if
-
-    i_min  = FLOOR(x_min/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-    i_max  = FLOOR(x_max/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-    j_min  = FLOOR(y_min/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
-    j_max  = FLOOR(y_max/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
-    k_min  = FLOOR(z_min/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
-    k_max  = FLOOR(z_max/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
-
-    this%i_min = i_min
-    this%i_max = i_max
-    this%j_min = j_min
-    this%j_max = j_max
-    this%k_min = k_min
-    this%k_max = k_max
-
-    this%i_min_in_this_rank = .false.
-    this%i_max_in_this_rank = .false.
-    this%j_min_in_this_rank = .false.
-    this%j_max_in_this_rank = .false.
-    this%k_min_in_this_rank = .false.
-    this%k_max_in_this_rank = .false.
-    
-    rank_x = int((i_min-1)/grid_Ndims(1))
-
-    if (rank_x == mpi_coords(1)) then
-        this%i_min_in_this_rank = .true.
-        this%i_min_loc          = i_min - rank_x*grid_Ndims(1)
-    end if
-
-    rank_x = int((i_max-1)/grid_Ndims(1))
-
-    if (rank_x == mpi_coords(1)) then
-        this%i_max_in_this_rank = .true.
-        this%i_max_loc          = i_max - rank_x*grid_Ndims(1)
-    end if
-
-    if (this%dim > 1) then
-
-        rank_y = int((j_min-1)/grid_Ndims(2))
-
-        if (rank_y == mpi_coords(2)) then
-            this%j_min_in_this_rank = .true.
-            this%j_min_loc          = j_min - rank_y*grid_Ndims(2)
-        end if
-
-        rank_y = int((j_max-1)/grid_Ndims(2))
-
-        if (rank_y == mpi_coords(2)) then
-            this%j_max_in_this_rank = .true.
-            this%j_max_loc          = j_max - rank_y*grid_Ndims(2)
-        end if
-
-    end if
-
-    if (this%dim == 3) then
-
-        rank_z = int((k_min-1)/grid_Ndims(3))
-
-        if (rank_z == mpi_coords(3)) then
-            this%k_min_in_this_rank = .true.
-            this%k_min_loc          = k_min - rank_z*grid_Ndims(3)
-        end if
-
-        rank_z = int((k_max-1)/grid_Ndims(3))
-
-        if (rank_z == mpi_coords(3)) then
-            this%k_max_in_this_rank = .true.
-            this%k_max_loc          = k_max - rank_z*grid_Ndims(3)
-        end if
-
-    end if
+    this%lenght = lenght * nm_to_au
+    this%height   = height * nm_to_au
 
     select case (this%dim)
     case (1)
@@ -961,6 +857,34 @@ subroutine init_gaussbeam_src(this, input_ch, dim, mode_2D, dt, dr, grid_Ndims, 
         if (mode_2D == TMZ_2D_MODE) this%sin_psi = 1.0d0
         if (mode_2D == TEZ_2D_MODE) this%cos_psi = 1.0d0
 
+        this%v1_vec = CROSS_PRODUCT(this%v_vec, uz_vec)
+        this%v1_vec = this%v1_vec/DSQRT(DOT_PRODUCT(this%v1_vec, this%v1_vec))
+
+        this%r_src  = this%r0 + this%v_vec * d_src * nm_to_au
+
+        if ((this%r_src(1) + this%v1_vec(1) * this%lenght/2 > (int(grid_Ndims(1)*mpi_dims(1)/2))*dr) .or. &
+            (this%r_src(1) - this%v1_vec(1) * this%lenght/2 < (1-int(grid_Ndims(1)*mpi_dims(1)/2))*dr)) then
+
+            write (*, '("Error: the Gaussian beam source extends beyond the simulation box in x direction &
+                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(1)*mpi_dims(1)/2))*dr/nm_to_au, &
+                                                    (int(grid_Ndims(1)*mpi_dims(1)/2))*dr/nm_to_au
+            error stop
+
+        end if
+
+        if ((this%r_src(2) + this%v1_vec(2) * this%lenght/2 > (int(grid_Ndims(2)*mpi_dims(2)/2))*dr) .or. &
+            (this%r_src(2) - this%v1_vec(2) * this%lenght/2 < (1-int(grid_Ndims(2)*mpi_dims(2)/2))*dr)) then
+
+            write (*, '("Error: the Gaussian beam source extends beyond the simulation box in y direction &
+                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(2)*mpi_dims(2)/2))*dr/nm_to_au, &
+                                                    (int(grid_Ndims(2)*mpi_dims(2)/2))*dr/nm_to_au
+            error stop
+
+        end if
+
+        this%l_min = -FLOOR(this%lenght/2/this%dr)
+        this%l_max =  FLOOR(this%lenght/2/this%dr)
+
     case (3)
         this%v_vec =  (/DCOS(this%phi)*DSIN(this%theta), &
                        DSIN(this%phi)*DSIN(this%theta), &
@@ -970,7 +894,85 @@ subroutine init_gaussbeam_src(this, input_ch, dim, mode_2D, dt, dr, grid_Ndims, 
         this%sin_psi  = DSIN(this%psi)
 
         this%v1_vec = CROSS_PRODUCT(this%v_vec, uz_vec)
+        this%v1_vec = this%v1_vec/DSQRT(DOT_PRODUCT(this%v1_vec, this%v1_vec))
+        
         this%v3_vec = CROSS_PRODUCT(this%v1_vec, this%v_vec)
+        this%v3_vec = this%v3_vec/DSQRT(DOT_PRODUCT(this%v3_vec, this%v3_vec))
+
+        if (theta == 0.0_dp) then
+            this%v1_vec = (/1.0_dp, 0.0_dp, 0.0_dp/)
+            this%v3_vec = (/0.0_dp, 1.0_dp, 0.0_dp/)
+        else if (theta == 180.0_dp) then
+            this%v1_vec = (/1.0_dp, 0.0_dp, 0.0_dp/)
+            this%v3_vec = (/0.0_dp, -1.0_dp, 0.0_dp/)
+        end if
+
+        this%r_src = this%r0 + this%v_vec * d_src * nm_to_au
+
+        if ((this%r_src(1) + this%v1_vec(1) * this%lenght/2 > (int(grid_Ndims(1)*mpi_dims(1)/2))*dr) .or. &
+            (this%r_src(1) - this%v1_vec(1) * this%lenght/2 < (1-int(grid_Ndims(1)*mpi_dims(1)/2))*dr)) then
+
+            write (*, '("Error: the Gaussian beam source extends beyond the simulation box in x direction &
+                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(1)*mpi_dims(1)/2))*dr/nm_to_au, &
+                                                    (int(grid_Ndims(1)*mpi_dims(1)/2))*dr/nm_to_au
+            error stop
+
+        end if
+
+        if ((this%r_src(2) + this%v1_vec(2) * this%lenght/2 > (int(grid_Ndims(2)*mpi_dims(2)/2))*dr) .or. &
+            (this%r_src(2) - this%v1_vec(2) * this%lenght/2 < (1-int(grid_Ndims(2)*mpi_dims(2)/2))*dr)) then
+
+            write (*, '("Error: the Gaussian beam source extends beyond the simulation box in y direction &
+                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(2)*mpi_dims(2)/2))*dr/nm_to_au, &
+                                                    (int(grid_Ndims(2)*mpi_dims(2)/2))*dr/nm_to_au
+            error stop
+
+        end if
+
+        if ((this%r_src(3) + this%v1_vec(3) * this%lenght/2 > (int(grid_Ndims(3)*mpi_dims(3)/2))*dr) .or. &
+            (this%r_src(3) - this%v1_vec(3) * this%lenght/2 < (1-int(grid_Ndims(3)*mpi_dims(3)/2))*dr)) then
+
+            write (*, '("Error: the Gaussian beam source extends beyond the simulation box in z direction &
+                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(3)*mpi_dims(3)/2))*dr/nm_to_au, &
+                                                    (int(grid_Ndims(3)*mpi_dims(3)/2))*dr/nm_to_au
+            error stop
+
+        end if
+
+        if ((this%r_src(1) + this%v3_vec(1) * this%height/2 > (int(grid_Ndims(1)*mpi_dims(1)/2))*dr) .or. &
+            (this%r_src(1) - this%v3_vec(1) * this%height/2 < (1-int(grid_Ndims(1)*mpi_dims(1)/2))*dr)) then
+
+            write (*, '("Error: the Gaussian beam source extends beyond the simulation box in x direction &
+                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(1)*mpi_dims(1)/2))*dr/nm_to_au, &
+                                                    (int(grid_Ndims(1)*mpi_dims(1)/2))*dr/nm_to_au
+            error stop
+
+        end if
+
+        if ((this%r_src(2) + this%v3_vec(2) * this%height/2 > (int(grid_Ndims(2)*mpi_dims(2)/2))*dr) .or. &
+            (this%r_src(2) - this%v3_vec(2) * this%height/2 < (1-int(grid_Ndims(2)*mpi_dims(2)/2))*dr)) then
+
+            write (*, '("Error: the Gaussian beam source extends beyond the simulation box in y direction &
+                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(2)*mpi_dims(2)/2))*dr/nm_to_au, &
+                                                    (int(grid_Ndims(2)*mpi_dims(2)/2))*dr/nm_to_au
+            error stop
+
+        end if
+
+        if ((this%r_src(3) + this%v3_vec(3) * this%height/2 > (int(grid_Ndims(3)*mpi_dims(3)/2))*dr) .or. &
+            (this%r_src(3) - this%v3_vec(3) * this%height/2 < (1-int(grid_Ndims(3)*mpi_dims(3)/2))*dr)) then
+
+            write (*, '("Error: the Gaussian beam source extends beyond the simulation box in z direction &
+                    & [", F10.4, ", ", F10.4, "].")') (1-int(grid_Ndims(3)*mpi_dims(3)/2))*dr/nm_to_au, &
+                                                    (int(grid_Ndims(3)*mpi_dims(3)/2))*dr/nm_to_au
+            error stop
+
+        end if
+
+        this%l_min = -FLOOR(this%lenght/2/this%dr)
+        this%l_max =  FLOOR(this%lenght/2/this%dr)
+        this%h_min = -FLOOR(this%height/2/this%dr)
+        this%h_max =  FLOOR(this%height/2/this%dr)
 
     end select
 
@@ -987,35 +989,29 @@ subroutine kill_gaussbeam_src(this)
 end subroutine kill_gaussbeam_src
 !###################################################################################################
 
-subroutine compute_time_space_profile(this, time, i_ndx, j_ndx, k_ndx, di, dj, dk, &
+subroutine compute_time_space_profile(this, time, x, y, z, &
                                       nx, ny, nz, mpi_coords, mpi_dims)
 
     class(TGaussbeamSrc), intent(inout) :: this
     real(dp)            , intent(in)    :: time
     integer             , intent(in)    :: mpi_coords(3)
     integer             , intent(in)    :: mpi_dims(3)
-    integer             , intent(in)    :: i_ndx
-    integer             , intent(in)    :: j_ndx
+    real(dp)            , intent(in)    :: x
+    real(dp)            , intent(in)    :: y
     integer             , intent(in)    :: nx
     integer             , intent(in)    :: ny
     
-    real(dp), optional, intent(in) :: di
-    real(dp), optional, intent(in) :: dj
-    real(dp), optional, intent(in) :: dk
-    integer , optional, intent(in) :: k_ndx
+    real(dp), optional, intent(in) :: z
     integer , optional, intent(in) :: nz
 
     integer     :: dim
-    integer     :: i_tot, j_tot, k_tot
     complex(dp) :: E_t
     complex(dp) :: E_rz
-    real(dp)    :: di_in, dj_in, dk_in
     real(dp)    :: r
-    real(dp)    :: z
+    real(dp)    :: z_rel
     real(dp)    :: envelope
-    real(dp)    :: z_ramp
-    real(dp)    :: z0_ramp
-    real(dp)    :: dz_ramp
+    real(dp)    :: t0
+    real(dp)    :: tau
     real(dp)    :: w_z
     real(dp)    :: inv_R_z
     real(dp)    :: psi_z
@@ -1023,63 +1019,45 @@ subroutine compute_time_space_profile(this, time, i_ndx, j_ndx, k_ndx, di, dj, d
     real(dp)    :: v_vec(3)
     real(dp)    :: P_vec(3)
     real(dp)    :: w_vec(3)
-    real(dp)    :: v1_vec(3)
-    real(dp)    :: v3_vec(3)
     real(dp)    :: r_vec(3)
 
 
     dim = 2
     if (present(nz)) dim = 3
 
-    di_in = 0.0d0
-    if (present(di)) di_in = di
-
-    dj_in = 0.0d0
-    if (present(dj)) dj_in = dj
-
-    dk_in = 0.0d0
-    if (present(dk)) dk_in = dk
-
     r0_vec = this%r0
     v_vec  = this%v_vec
 
-    z0_ramp = this%z0_ramp
-    dz_ramp = this%dz_ramp
+    t0     = this%t0
+    tau    = this%tau
 
 
-    i_tot = i_ndx + INT(mpi_coords(1)*nx)
-    j_tot = j_ndx + INT(mpi_coords(2)*ny)
-
-    if (dim == 3) then
-        k_tot = k_ndx + INT(mpi_coords(3)*nz)
-        P_vec(3) = (k_tot + dk_in - INT(mpi_dims(3)*nz/2))*this%dr
-    end if
-
-    P_vec(1) = (i_tot + di_in - INT(mpi_dims(1)*nx/2))*this%dr
-    P_vec(2) = (j_tot + dj_in - INT(mpi_dims(2)*ny/2))*this%dr
+    P_vec(1) = x
+    P_vec(2) = y
+    if (present(z)) P_vec(3) = z
 
     w_vec(1:dim) = P_vec(1:dim) - r0_vec(1:dim)
-    z            = DOT_PRODUCT(w_vec(1:dim), v_vec(1:dim))
-    r_vec(1:dim) = w_vec(1:dim) - z*v_vec(1:dim)
+    z_rel        = DOT_PRODUCT(w_vec(1:dim), v_vec(1:dim))
+    r_vec(1:dim) = w_vec(1:dim) - z_rel*v_vec(1:dim)
     r            = SQRT(DOT_PRODUCT(r_vec(1:dim), r_vec(1:dim)))
 
-    z_ramp = time*c0 + z0_ramp
+    envelope = EXP(-(time-t0)**2/(2*tau**2))
 
-    envelope = EXP(-(z-z_ramp)**2/(2*dz_ramp**2))
+    if (time > t0 .and. envelope < 1.0d-10) this%turn_off = .true.
 
     E_t   = this%E_amp * envelope * (DCOS(this%freq*time + this%phase) + &
                                      Z_I*DSIN(this%freq*time + this%phase))
 
-    w_z   = this%w0*SQRT(1.0d0 + (z/this%z_R)**2)
-    inv_R_z = z/(z**2 + this%z_R**2)
-    psi_z = ATAN(z/this%z_R)
+    w_z   = this%w0*SQRT(1.0d0 + (z_rel/this%z_R)**2)
+    inv_R_z = z_rel/(z_rel**2 + this%z_R**2)
+    psi_z = ATAN(z_rel/this%z_R)
 
     E_rz = (this%w0/w_z)*EXP(-r**2/w_z**2) * &
-           (DCOS(this%k*z + 0.5d0*this%k*r**2*inv_R_z - psi_z) - &
-            Z_I*DSIN(this%k*z + 0.5d0*this%k*r**2*inv_R_z - psi_z))
-
+           (DCOS(this%k*z_rel + 0.5d0*this%k*r**2*inv_R_z - psi_z) - &
+            Z_I*DSIN(this%k*z_rel + 0.5d0*this%k*r**2*inv_R_z - psi_z))
+        
     this%E_rzt = E_t * E_rz
-
+            
     if (dim == 2) then
         this%E_vec(1) = this%cos_phi*this%cos_psi*REAL(this%E_rzt)
         this%E_vec(2) = this%sin_phi*this%cos_psi*REAL(this%E_rzt)

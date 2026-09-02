@@ -169,6 +169,10 @@ def medium_file(file_number=1, medium_type="dielectric", relative_permitivity=1.
         print("Error: coordinates must be specified.")
         return
 
+    if not isinstance(coordinates, (list, np.ndarray)):
+        print("Error: coordinates must be a list or a numpy array.")
+        return
+
     # Accept either a single coordinate vector (e.g. [x, y, z]) or
     # a list/array of coordinate vectors (e.g. [[x1, y1, z1], [x2, y2, z2]]).
     coord_array = np.asarray(coordinates)
@@ -389,37 +393,68 @@ def dftb_molecule_file(file_number=1, n_atoms=None, n_atom_types=None,
 ########################################################################################################################################################################################################################
 
 def sources_file(source_type=None, polarization=None, field_amp=None, frequency=None, t0=None, tau=None, t_init=None, t_end=None, phase=None,
-                r0=None, radius=None, phi=None, theta=None, psi=None, x_min=None, x_max=None, y_min=None, y_max=None, z_min=None, z_max=None, 
+                r0=None, radius=None, phi=None, theta=None, psi=None, x_min=None, x_max=None, y_min=None, y_max=None, z_min=None, z_max=None,
+                w0=None, d_src=None, lenght=None, height=None,
                 file_exists=False, help=False):
     
     if help:
         print("The following parameters can be set in the 'sources.in' file for the Mxll simulation:")
         print("")
         print(
-            "source_type  -> Type of source: \"point\", \"plane_wave\".\n"
-            "polarization -> Polarization of the \"point\" source: \"x\", \"y\" or \"z\" \n"
-            "field_amp    -> Field amplitude in atomic units for the sources.\n"
-            "frequency    -> Source frequency in eV.\n"
-            "t0           -> Time origin of the source in fs.\n"
-            "tau          -> Full width at half maximum (FWHM) of the pulse in fs.\n"
-            "t_init       -> Initial time of the source in fs. The source will be turned on at this time step.\n"
-            "t_end        -> Final time of the source in fs. The source will be turned off after this time step.\n"
-            "phase        -> Phase of the source in degrees.\n"
-            "r0(3)        -> Position of the center of the \"point\" source in nm. \n"
-            "radius       -> FWHM of the gaussian spatial profile of the \"point\" source in nm.\n" 
-            "phi          -> Angle between the x-axis and the projection of the wavevector of the \"plane_wave\" source on the xy-plane in degrees. \n"
-            "theta        -> Angle between the z-axis and the wavevector of the \"plane_wave\" source in degrees. \n"
-            "psi          -> Rotation angle of the electric field around the wavevector of the \"plane_wave\" source in degrees. \n"
-            "                For psi=0, the electric field is parallel to \"k x z\", where k is the wavevector of the plane wave. \n"
-            "x_min, x_max -> Minimum and maximum x coordinates of the region limited for the plane wave source in nm. \n"
-            "y_min, y_max -> Minimum and maximum y coordinates of the region limited for the plane wave source in nm. \n"
-            "z_min, z_max -> Minimum and maximum z coordinates of the region limited for the plane wave source in nm. \n"
+            "source_type  -> Type of source: \"point\", \"plane_wave\", \"gaussbeam\".\n"
+
+            "   Variables for point source \n"
+            "       - polarization -> Polarization of the \"point\" source: \"x\", \"y\" or \"z\" \n"
+            "       - field_amp    -> Field amplitude in atomic units.\n"
+            "       - frequency    -> Source frequency in eV.\n"
+            "       - t0           -> Time origin of the source in fs.\n"
+            "       - tau          -> Full width at half maximum (FWHM) of the pulse in fs.\n"
+            "       - t_init       -> Initial time of the source in fs. The source will be turned on at this time step.\n"
+            "       - t_end        -> Final time of the source in fs. The source will be turned off after this time step.\n"
+            "       - phase        -> Phase of the source in degrees.\n"
+            "       - r0(3)        -> Position of the center of the \"point\" source in nm. \n"
+            "       - radius       -> FWHM of the gaussian spatial profile of the \"point\" source in nm.\n" 
+
+            "   Variables for plane wave source \n"
+            "       - field_amp    -> Field amplitude in atomic units.\n"
+            "       - phi          -> Angle between the x-axis and the projection of the wavevector of the \"plane_wave\" source on the xy-plane in degrees. \n"
+            "       - theta        -> Angle between the z-axis and the wavevector of the \"plane_wave\" source in degrees. \n"
+            "       - psi          -> Rotation angle of the electric field around the wavevector of the \"plane_wave\" source in degrees. \n"
+            "                         For psi=0, the electric field is parallel to \"k x z\", where k is the wavevector of the plane wave. \n"
+            "       - frequency    -> Source frequency in eV.\n"
+            "       - t0           -> Time origin of the source in fs.\n"
+            "       - tau          -> Full width at half maximum (FWHM) of the pulse in fs.\n"
+            "       - t_init       -> Initial time of the source in fs. The source will be turned on at this time step.\n"
+            "       - t_end        -> Final time of the source in fs. The source will be turned off after this time step.\n"
+            "       - phase        -> Phase of the source in degrees.\n"
+            "       - x_min, x_max -> Minimum and maximum x coordinates of the region limited for the plane wave source in nm. \n"
+            "       - y_min, y_max -> Minimum and maximum y coordinates of the region limited for the plane wave source in nm. \n"
+            "       - z_min, z_max -> Minimum and maximum z coordinates of the region limited for the plane wave source in nm. \n"
+
+            "   Variables for gaussian beam source \n"
+            "       - field_amp    -> Field amplitude in atomic units.\n"
+            "       - phi          -> Angle between the x-axis and the projection of the wavevector of the \"gaussian_beam\" source on the xy-plane in degrees. \n"
+            "       - theta        -> Angle between the z-axis and the wavevector of the \"gaussian_beam\" source in degrees. \n"
+            "       - psi          -> Rotation angle of the electric field around the wavevector of the \"gaussian_beam\" source in degrees. \n"
+            "                         For psi=0, the electric field is parallel to \"k x z\", where k is the wavevector of the gaussian beam. \n"
+            "       - frequency    -> Source frequency in eV.\n"
+            "       - t0           -> Time origin of the source in fs.\n"
+            "       - tau          -> Full width at half maximum (FWHM) of the pulse in fs.\n"
+            "       - phase        -> Phase of the source in degrees.\n"
+            "       - w0           -> Beam waist of the gaussian beam in nm.\n"
+            "       - r0(3)        -> Array of coordinates of the focus of the gaussian beam in nm.\n"
+            "       - d_src        -> Distance from the position of the source respect to the focus of the gaussian beam. \n"
+            "                         This distance is measured along the propagation direction of the gaussian beam. \n"
+            "       - lenght       -> Size of the line (for the 2D case) or one side of the plane (for the 3D case) where the source will be inserted in nm. \n"
+            "       - height       -> Height of the plane (for the 3D case) where the source will be inserted in nm. \n "
+
+            " \n"
             "file_exists  -> Whether the sources.in file already exists. If True, the new source will be added \n"
             "                at the end of the file. Default: False.\n")
 
         return
 
-    if source_type is None:
+    if source_type is None or source_type != "point" and source_type != "plane_wave" and source_type != "gaussian_beam":
         print("Error: source_type must be specified.")
         return
     
@@ -438,10 +473,22 @@ def sources_file(source_type=None, polarization=None, field_amp=None, frequency=
                   "       must be specified for a \"plane_wave\" source.")
             return
 
+    if source_type == "gaussian_beam":
+        if field_amp is None or phi is None or theta is None or psi is None or frequency is None or t0 is None or tau is None \
+        or phase is None or w0 is None or r0 is None or d_src is None or lenght is None or height is None:
+        
+            print("Error: field_amp, phi, theta, psi, frequency, t0, tau, phase, w0, r0, d_src, lenght and height must be specified for a \"gaussian_beam\" source.")
+            return
+
     if z_min is not None and z_max is not None and source_type == "plane_wave":
         print("Warning: z_min and z_max will be equal to 0.0 for the \"plane_wave\" source. This is only right for 2D simulations.")
         z_min = 0.0
         z_max = 0.0
+
+    if not isinstance(r0, list) or len(r0) != 3:
+        print("Error: r0 must be a list of length 3.")
+        return
+    
 
     if file_exists:
         mode = "a"
@@ -460,6 +507,10 @@ def sources_file(source_type=None, polarization=None, field_amp=None, frequency=
         str(frequency) + "   " + str(t0) + "   " + str(tau) + "   " + str(x_min) + " " + str(x_max) + " " + str(y_min) + " " +  \
         str(y_max) + " " + str(z_min) + " " + str(z_max) + "   " + str(t_init) + "   " + str(t_end) + "   " + str(phase) + "\n")
 
+    if source_type == "gaussian_beam":
+        source_file.write("\"" + source_type + "\"   " + str(field_amp) + "   " + str(phi)+ "   " + str(theta) + "   " + str(psi) + "   " + \
+        str(frequency) + "   " + str(phase) + "   " + str(r0[0]) + " " + str(r0[1]) + " " + str(r0[2]) + "   " + str(w0) + "   " +    \
+        str(t0) + "   "+ str(tau) + "   " + str(d_src) + "   " + str(lenght) + "   " + str(height) + "\n")
     source_file.close()
 
     return
