@@ -330,6 +330,7 @@ subroutine opt_step_3D(this)
 
     integer  :: nx, ny, nz
     integer  :: i, j, k
+    integer  :: ierr
     real(dp) :: norm_loc
     real(dp) :: norm_global
 

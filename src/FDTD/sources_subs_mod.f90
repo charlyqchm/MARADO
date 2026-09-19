@@ -74,6 +74,8 @@ module sources_subs_mod
         real(dp)            :: theta
         real(dp)            :: psi
         real(dp)            :: v_vec(3)
+        real(dp)            :: v1_vec(3)
+        real(dp)            :: v3_vec(3)
         real(dp)            :: A_vec(3)
         real(dp)            :: w0              
         real(dp)            :: t0
@@ -487,9 +489,11 @@ subroutine init_plane_wave_src(this, input_ch, dim, dt, dr, grid_Ndims, mpi_coor
     real(dp)           :: t_init
     real(dp)           :: t_final
     real(dp)           :: phase
+    real(dp)           :: uz_vec(3) = (/0.0d0, 0.0d0, 1.0d0/)
     real(dp)           :: x_min, x_max
     real(dp)           :: y_min, y_max
     real(dp)           :: z_min, z_max
+    real(dp)           :: norm
 
     read(input_ch, *) type_src_ch, E_amp, phi, theta, psi, freq, t0, tau, &
                       x_min, x_max, y_min, y_max, z_min, z_max, &
@@ -679,7 +683,12 @@ subroutine init_plane_wave_src(this, input_ch, dim, dt, dr, grid_Ndims, mpi_coor
             this%A_vec(1) = (i_min - int(grid_Ndims(1)*mpi_dims(1)/2))*dr
             this%A_vec(2) = (j_max - int(grid_Ndims(2)*mpi_dims(2)/2))*dr
         end if
-        
+       
+        norm = DOT_PRODUCT(this%v_vec, this%v_vec)
+        norm = SQRT(norm)
+
+        this%v_vec = this%v_vec / norm
+
     case (3)
         dr_1D = dr * SQRT( DCOS(this%theta)**4 + &
                            DSIN(this%theta)**4 * (DCOS(this%phi)**4 + DSIN(this%phi)**4) )
@@ -709,6 +718,26 @@ subroutine init_plane_wave_src(this, input_ch, dim, dt, dr, grid_Ndims, mpi_coor
         else if (theta > 90.0_dp .and. theta <= 180.0_dp) then
             this%A_vec(3) = (k_max - int(grid_Ndims(3)*mpi_dims(3)/2))*dr
         end if
+
+        this%v1_vec = CROSS_PRODUCT(this%v_vec, uz_vec)
+        this%v3_vec = CROSS_PRODUCT(this%v1_vec, this%v_vec)
+
+        if (theta == 0.0_dp) then
+            this%v1_vec = (/1.0_dp, 0.0_dp, 0.0_dp/)
+            this%v3_vec = (/0.0_dp, -1.0_dp, 0.0_dp/)
+        else if (theta == 180.0_dp) then
+            this%v1_vec = (/1.0_dp, 0.0_dp, 0.0_dp/)
+            this%v3_vec = (/0.0_dp, 1.0_dp, 0.0_dp/)
+        end if
+
+        norm = SQRT(DOT_PRODUCT(this%v_vec, this%v_vec))
+        this%v_vec = this%v_vec / norm
+
+        norm = SQRT(DOT_PRODUCT(this%v1_vec, this%v1_vec))
+        this%v1_vec = this%v1_vec / norm
+
+        norm = SQRT(DOT_PRODUCT(this%v3_vec, this%v3_vec))
+        this%v3_vec = this%v3_vec / norm
 
     end select 
 
@@ -841,6 +870,8 @@ subroutine init_gaussbeam_src(this, input_ch, dim, mode_2D, dt, dr, grid_Ndims, 
     this%lenght = lenght * nm_to_au
     this%height   = height * nm_to_au
 
+    this%turn_off = .false.
+
     select case (this%dim)
     case (1)
         write(*,*) "Error: Gaussian beam source is not implemented for 1D simulations."
@@ -901,10 +932,10 @@ subroutine init_gaussbeam_src(this, input_ch, dim, mode_2D, dt, dr, grid_Ndims, 
 
         if (theta == 0.0_dp) then
             this%v1_vec = (/1.0_dp, 0.0_dp, 0.0_dp/)
-            this%v3_vec = (/0.0_dp, 1.0_dp, 0.0_dp/)
+            this%v3_vec = (/0.0_dp, -1.0_dp, 0.0_dp/)
         else if (theta == 180.0_dp) then
             this%v1_vec = (/1.0_dp, 0.0_dp, 0.0_dp/)
-            this%v3_vec = (/0.0_dp, -1.0_dp, 0.0_dp/)
+            this%v3_vec = (/0.0_dp, 1.0_dp, 0.0_dp/)
         end if
 
         this%r_src = this%r0 + this%v_vec * d_src * nm_to_au

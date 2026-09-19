@@ -35,6 +35,7 @@ module constants_mod
     double precision, parameter :: kg_to_au        = 1.0/9.1093837139D-31
     double precision, parameter :: m_to_au         = 1.0/5.29177210544D-11
     double precision, parameter :: nm_to_au        = 18.897261259077823
+    double precision, parameter :: AA_to_au        = 1.8897261259077823
     double precision, parameter :: au_to_nm        = 1.0/nm_to_au
     double precision, parameter :: ev_to_radsec    = 2.0*pi0*2.418d14
     double precision, parameter :: ev_to_au        = 1.0/27.2114
@@ -43,6 +44,7 @@ module constants_mod
     double precision, parameter :: Debye_to_Cm     = 3.33564d-30
     double precision, parameter :: Debye_to_au     = 3.0/7.63
     double precision, parameter :: fs_to_au        = 1.0d0/2.4188843265864D-2  !0.0241888432650516d0
+    double precision, parameter :: ps_to_au        = 1.0d0/2.4188843265864D-5  !picosecond to atomic units
     double precision, parameter :: au_to_fs        = 2.4188843265864D-2
 
     double precision, parameter :: dipole_au_to_SI = 8.47835281d-30

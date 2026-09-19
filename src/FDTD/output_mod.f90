@@ -15,6 +15,73 @@ contains
 
 !###################################################################################################
 
+subroutine write_program_header(myrank)
+
+    integer, intent(in) :: myrank
+
+    if (myrank /= 0) return
+
+    write(*,'(A)') "--------------------------------------------------------------"
+    write(*,'(A)') "       __  __            _____             _____    ___"
+    write(*,'(A)') "      |  \/  |    /\    |  __ \     /\    |  __ \  / _ \      "
+    write(*,'(A)') "      | \  / |   /  \   | |__) |   /  \   | |  | || | | |     "
+    write(*,'(A)') "      | |\/| |  / /\ \  |  _  /   / /\ \  | |  | || | | |     "
+    write(*,'(A)') "      | |  | | / ____ \ | | \ \  / ____ \ | |__| || |_| |     "
+    write(*,'(A)') "      |_|  |_|/_/    \_\|_|  \_\/_/    \_\|_____/  \___/      "
+    write(*,'(A)') ""
+    write(*,'(A)') "--------------------------------------------------------------"
+    write(*,'(A)') "  ~ Maxwell-coupled Real-time Atomistic Dynamics and Optics ~ "
+    write(*,'(A)') ""
+    write(*,'(A)') "                             ~ Un golazo for your dynamics! ~"
+
+end subroutine write_program_header
+
+!###################################################################################################
+
+subroutine write_modified_variables(dt, dt_q, dr,Nt, Nt_q, grid_Ndims, mpi_dims, mpi_coords, myrank)
+
+    real(dp), intent(in)  :: dt
+    real(dp), intent(in)  :: dt_q
+    real(dp), intent(in)  :: dr
+    integer , intent(in)  :: Nt
+    integer , intent(in)  :: Nt_q
+    integer , intent(in)  :: grid_Ndims(3)
+    integer , intent(in)  :: mpi_dims(3)
+    integer , intent(in)  :: mpi_coords(3)
+    integer , intent(in)  :: myrank
+
+    real(dp) :: x_min, x_max, y_min, y_max, z_min, z_max
+
+    if (myrank /= 0) return
+
+    x_min = (-int(grid_Ndims(1)*mpi_dims(1)/2) + 1)*dr
+    x_max = ( int(grid_Ndims(1)*mpi_dims(1)/2)    )*dr
+    y_min = (-int(grid_Ndims(2)*mpi_dims(2)/2) + 1)*dr
+    y_max = ( int(grid_Ndims(2)*mpi_dims(2)/2)    )*dr
+    z_min = (-int(grid_Ndims(3)*mpi_dims(3)/2) + 1)*dr
+    z_max = ( int(grid_Ndims(3)*mpi_dims(3)/2)    )*dr
+
+    write(*,'("--------------------------------------------------------------")')
+    write(*,'("Modified variables:")')
+    write(*,'("--------------------------------------------------------------")')
+    write(*,'("Mxll dt     = ", ES14.8, " fs")') dt/fs_to_au
+    write(*,'("q-system dt = ", ES14.8, " a.u.")') dt_q
+    write(*,'("Total number of Mxll time steps     = ", I12)') Nt
+    write(*,'("Total number of q-system time steps = ", I12)') Nt_q
+    write(*,'("Total grid points per node = ", I12)') grid_Ndims(1)*grid_Ndims(2)*grid_Ndims(3)
+    write(*,'("Total grid points          = ", I12)') &
+           grid_Ndims(1)*grid_Ndims(2)*grid_Ndims(3)*mpi_dims(1)*mpi_dims(2)*mpi_dims(3)
+    write(*,'("Grid boundaries:")')
+    write(*,'("  x_min = ", F12.6, " nm, x_max = ", F12.6, " nm")') x_min*au_to_nm, x_max*au_to_nm
+    write(*,'("  y_min = ", F12.6, " nm, y_max = ", F12.6, " nm")') y_min*au_to_nm, y_max*au_to_nm
+    write(*,'("  z_min = ", F12.6, " nm, z_max = ", F12.6, " nm")') z_min*au_to_nm, z_max*au_to_nm
+    write(*,'("--------------------------------------------------------------")')
+
+
+end subroutine write_modified_variables
+
+!###################################################################################################
+
 subroutine init_detectors_outputs(n_detectors, t_det_print, dt_det_print, detectors, dimensions, &
                              grid_Ndims, mxll_mode, dr, dt, mpi_dims, mpi_coords, myrank)
 

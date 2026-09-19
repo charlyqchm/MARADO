@@ -157,7 +157,7 @@ def medium_file(file_number=1, medium_type="dielectric", relative_permitivity=1.
         print(
             "file_number          -> Number of the medium file, starting from 1. It should be consistent with \n"
             "                        the number of media specified in the 'inp' file.\n"
-            "medium_type          -> Type of medium: \"dielectric\", \"drude\", \"lorentz-drude\". Default: \"dielectric\".\n"
+            "medium_type          -> Type of medium: \"dielectric\", \"drude\", \"drude-lorentz\". Default: \"dielectric\".\n"
             "relative_permitivity -> Relative permitivity for a dielectric medium and drude. Default: 2.0.\n"
             "omega                -> Resonance frequency in eV for a drude medium.\n"
             "gamma                -> Damping factor in eV for a drude medium.\n"
@@ -205,8 +205,8 @@ def medium_file(file_number=1, medium_type="dielectric", relative_permitivity=1.
 
     medium_file = open("medium_" + id_number + ".in", "w")
 
-    if medium_type not in ["dielectric", "drude", "lorentz-drude"]:
-        print("Error: medium_type should be one of the following: \"dielectric\", \"drude\", \"lorentz-drude\".")
+    if medium_type not in ["dielectric", "drude", "drude-lorentz"]:
+        print("Error: medium_type should be one of the following: \"dielectric\", \"drude\", \"drude-lorentz\".")
         return
 
     if medium_type == "dielectric":
@@ -220,12 +220,12 @@ def medium_file(file_number=1, medium_type="dielectric", relative_permitivity=1.
         medium_file.write("\"" + medium_type + "\"\n")
         medium_file.write(str(omega) + " " + str(gamma) + "  " + str(relative_permitivity) + "\n")
 
-    if medium_type == "lorentz-drude":
+    if medium_type == "drude-lorentz":
         if material is None:
-            print("Error: material must be specified for a lorentz-drude medium.")
+            print("Error: material must be specified for a drude-lorentz medium.")
             return
         medium_file.write("\"" + medium_type + "\"\n")
-        medium_file.write("\"" + material + "\"\n")
+        medium_file.write("\"" + material + "\"      " + str(relative_permitivity) + "\n")
 
     if dimensions == 1:
         for i in range(n):
@@ -333,7 +333,8 @@ def mol_group_file(file_number=1, number_of_q_systems=None, group_type="material
 def dftb_molecule_file(file_number=1, n_atoms=None, n_atom_types=None,
                               dynamics_type=None, print_coordinates=False, euler_steps=500,
                               atom_types_list=None, max_angular_momentum_list=None, scc_tolerance=1e-6,
-                              atoms_list=None, atom_coordinates=None, help=False):
+                              atoms_list=None, atom_coordinates=None, 
+                              initial_velocities=None, help=False):
     
     if help:
         print("The following parameters can be set in the 'molecule_xxxxxxx.in' file for the Mxll simulation:")
@@ -350,7 +351,8 @@ def dftb_molecule_file(file_number=1, n_atoms=None, n_atom_types=None,
             "max_angular_momentum_list -> Orbital name of the maximum angular momentum for each atom type in atom_types_list.\n"
             "scc_tolerance             -> Tolerance for the self-consistent charge calculation. Default: 1e-6.\n"
             "atoms_list                -> List of atoms in the molecule with dimension (n_atoms).\n"
-            "atom_coordinates          -> Array of shape (n_atoms, 3) with the x, y and z coordinates of each atom in Angstroms.\n")
+            "atom_coordinates          -> Array of shape (n_atoms, 3) with the x, y and z coordinates of each atom in Angstroms.\n"
+            "initial_velocities        -> Array of shape (n_atoms, 3) with the initial velocities of each atom in Angstroms per picosecond.\n")
 
         return
     
@@ -382,9 +384,19 @@ def dftb_molecule_file(file_number=1, n_atoms=None, n_atom_types=None,
 
     molecule_file.write("  \n")
 
+    if (dynamics_type != "electrons" and initial_velocities is None):
+        initial_velocities = [[0.0, 0.0, 0.0] for _ in range(n_atoms)]
+        
+
     for i in range(n_atoms):
-        molecule_file.write("  \"" + atoms_list[i] + "\"   " + str(atom_coordinates[i][0]) + " " +
-                            str(atom_coordinates[i][1]) + " " + str(atom_coordinates[i][2]) + "\n")
+
+        if (dynamics_type == "electrons"):
+            molecule_file.write("  \"" + atoms_list[i] + "\"   " + str(atom_coordinates[i][0]) + " " +
+                                str(atom_coordinates[i][1]) + " " + str(atom_coordinates[i][2]) + "\n")
+        else:
+            molecule_file.write("  \"" + atoms_list[i] + "\"   " + str(atom_coordinates[i][0]) + " " +
+                                str(atom_coordinates[i][1]) + " " + str(atom_coordinates[i][2]) + " " +
+                                str(initial_velocities[i][0]) + " " + str(initial_velocities[i][1]) + " " + str(initial_velocities[i][2]) + "\n")
 
     molecule_file.close()
 
@@ -479,15 +491,16 @@ def sources_file(source_type=None, polarization=None, field_amp=None, frequency=
         
             print("Error: field_amp, phi, theta, psi, frequency, t0, tau, phase, w0, r0, d_src, lenght and height must be specified for a \"gaussian_beam\" source.")
             return
+        
+        if not isinstance(r0, list) or len(r0) != 3:
+            print("Error: r0 must be a list of length 3.")
+            return
 
-    if z_min is not None and z_max is not None and source_type == "plane_wave":
+    if z_min is None and z_max is None and source_type == "plane_wave":
         print("Warning: z_min and z_max will be equal to 0.0 for the \"plane_wave\" source. This is only right for 2D simulations.")
         z_min = 0.0
         z_max = 0.0
 
-    if not isinstance(r0, list) or len(r0) != 3:
-        print("Error: r0 must be a list of length 3.")
-        return
     
 
     if file_exists:

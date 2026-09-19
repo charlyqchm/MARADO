@@ -14,6 +14,7 @@ module q_sys_dftb_mod
 
         character(len=20)    :: temp_file
         logical              :: print_coordinates
+        logical              :: init_velocities
         integer              :: dyn_type
         integer              :: n_atoms
         integer              :: n_at_typ
@@ -74,12 +75,15 @@ subroutine init_dftb(this, id, id_file, dt, t_steps, rank, print_on)
     character(len=20)  :: input_name
     character(len=30)  :: print_coord_ch
     character(len=100) :: dyn_type_str
+    character(len=100) :: external_src_file
     integer            :: n_atoms
     integer            :: n_at_typ
     integer            :: euler_steps
     integer            :: i, ii, j
     integer            :: ierr
     integer            :: funit
+    integer            :: ic
+    character(len=200) :: iomsg
     logical            :: atom_type_exists
     logical            :: periodic = .false. !This could be read from the file in the future
     logical            :: ion_dyn = .false.
@@ -158,6 +162,11 @@ subroutine init_dftb(this, id, id_file, dt, t_steps, rank, print_on)
         stop
     end select
 
+    this%init_velocities = .false.
+    if (this%dyn_type == DFTB_BO_DYN .or. this%dyn_type == DFTB_EHREN_DYN) then
+        this%init_velocities = .true.
+    end if
+
     if (.not. allocated(this%atom_names)) allocate(this%atom_names(n_atoms))
     if (.not. allocated(this%coor))       allocate(this%coor(3, n_atoms))
     if (.not. allocated(this%at_charges)) allocate(this%at_charges(n_atoms))
@@ -177,19 +186,24 @@ subroutine init_dftb(this, id, id_file, dt, t_steps, rank, print_on)
     if (.not. allocated(max_ang_orb))     allocate(max_ang_orb(n_at_typ))
     if (.not. allocated(atom_type))       allocate(atom_type(n_atoms))
     if (.not. allocated(coor_aux))        allocate(coor_aux(3, n_atoms))
-    
+
+    if (this%dyn_type == DFTB_BO_DYN .or. this%dyn_type == DFTB_EHREN_DYN) then
+        if (this%init_velocities) then
+            if (.not. allocated(this%vel)) allocate(this%vel(3, n_atoms))
+            this%vel = M_ZERO
+        end if
+    end if
+
     if (this%dyn_type == DFTB_BO_DYN) then
         if (.not. allocated(this%coor_old))   allocate(this%coor_old(3, n_atoms))
         if (.not. allocated(this%coor_new))   allocate(this%coor_new(3, n_atoms))
         if (.not. allocated(this%forces))     allocate(this%forces(3, n_atoms))
-        if (.not. allocated(this%vel))        allocate(this%vel(3, n_atoms))
         if (.not. allocated(this%at_masses))  allocate(this%at_masses(n_atoms))
 
         this%at_masses  = M_ZERO
         this%forces     = M_ZERO
         this%coor_old   = M_ZERO
         this%coor_new   = M_ZERO
-        this%vel        = M_ZERO
 
     end if 
 
@@ -200,11 +214,26 @@ subroutine init_dftb(this, id, id_file, dt, t_steps, rank, print_on)
     read (unit=funit, fmt=*, iostat=ierr) 
 
     do i=1, n_atoms
-        read (unit=funit, fmt=*, iostat=ierr) this%atom_names(i), &
-                                              this%coor(1,i), &
-                                              this%coor(2,i), &
-                                              this%coor(3,i)
-        
+
+        if (this%init_velocities) then
+
+            read (unit=funit, fmt=*, iostat=ierr) this%atom_names(i), &
+                                                this%coor(1,i), &
+                                                this%coor(2,i), &
+                                                this%coor(3,i), &
+                                                this%vel(1,i), &
+                                                this%vel(2,i), &
+                                                this%vel(3,i)
+            this%vel(:, i) = this%vel(:, i) * AA_to_au / ps_to_au
+        else
+
+            read (unit=funit, fmt=*, iostat=ierr) this%atom_names(i), &
+                                                this%coor(1,i), &
+                                                this%coor(2,i), &
+                                                this%coor(3,i)
+
+        end if
+
         atom_type_exists = .false.
         do ii=1, n_at_typ
             if (this%atom_names(i) == atom_type_list(ii)) then
@@ -275,6 +304,10 @@ subroutine init_dftb(this, id, id_file, dt, t_steps, rank, print_on)
         call setChildValue(this%pElecDyn, "EulerFrequency", this%euler_steps)
         call setChildValue(this%pElecDyn, "VerboseDynamics", .false.)
 
+        if (this%init_velocities) then
+            call setChildValue(this%pElecDyn, "Velocities", this%vel)
+        end if
+
         call setChild(this%pElecDyn, "Perturbation", this%pPerturb)
         call setChild(this%pPerturb, "Laser", this%pLaser)
     ! these twovalues will be overriden
@@ -284,7 +317,56 @@ subroutine init_dftb(this, id, id_file, dt, t_steps, rank, print_on)
 
     call this%dftbp%setupCalculator(this%dftbp_input)
 
+
+!Checking the presence of the name of the external source file
+    read(unit=funit, fmt="(A)", iostat=ierr) external_src_file
+
+    !Strip stray CR (Windows line endings) and other control characters that
+    !survive trim() and would otherwise make the filename invalid
+    do ic = 1, len(external_src_file)
+        if (iachar(external_src_file(ic:ic)) < 32) external_src_file(ic:ic) = ' '
+    end do
+    external_src_file = adjustl(external_src_file)
+
+    if (ierr /= 0 .or. len_trim(external_src_file) == 0) then
+        this%external_src = .false.
+    else
+        this%external_src = .true.
+
+        this%n_steps_src = t_steps
+
+        this%src_step = 1
+
+        if (.not. allocated(this%E_ext_field)) allocate(this%E_ext_field(3, this%n_steps_src))
+
+    end if
+
     close(funit)
+
+!Trying to read the external source file into the E_ext_field array
+
+    if (this%external_src) then
+
+        open(newunit=funit, file=trim(external_src_file), status='old', action='read', iostat=ierr, iomsg=iomsg)
+
+        if (ierr /= 0) then
+            write(*,*) "Error opening external source file: '"//trim(external_src_file)//"'"
+            write(*,*) "iostat = ", ierr, " iomsg = ", trim(iomsg)
+            stop
+        end if
+
+        do i = 1, this%n_steps_src
+            read(unit=funit, fmt=*, iostat=ierr) this%E_ext_field(1, i), this%E_ext_field(2, i), &
+                                                 this%E_ext_field(3, i)
+            if (ierr /= 0) then
+                write(*,*) "Error reading external source file: "//trim(external_src_file)
+                stop
+            end if
+        end do
+
+        close(funit)
+
+    end if
 
     if (allocated(atom_type_list)) deallocate(atom_type_list)
     if (allocated(max_ang_orb))    deallocate(max_ang_orb)
@@ -362,21 +444,32 @@ end subroutine gs_calculate_dftb
 
 !###################################################################################################
 
-subroutine td_propagate_dftb(this, tq_step, E_field)
+subroutine td_propagate_dftb(this, tq_step, E_field_in)
 
     class(TQ_sys_dftb), intent(inout) :: this
     integer           , intent(in)    :: tq_step
-    real(dp)          , intent(in)    :: E_field(3)
+    real(dp)          , intent(in)    :: E_field_in(3)
     
     integer  :: i
     real(dp) :: E_amp
     real(dp) :: vv
-
+    real(dp) :: E_field(3)
     real(dp), allocatable :: aux_at_charges(:,:)
     real(dp), allocatable :: dip_aux(:,:)
 
+    E_field = E_field_in
+
+
     if(.not. allocated(aux_at_charges)) allocate(aux_at_charges(this%n_atoms, 1))
     if(.not. allocated(dip_aux)) allocate(dip_aux(3, 1))
+
+    
+    E_field = E_field_in
+    
+    if (this%external_src) then
+        E_field = E_field + this%E_ext_field(:, this%src_step)
+        this%src_step = this%src_step + 1
+    end if
 
     E_amp = dsqrt(E_field(1)**2 + E_field(2)**2 + E_field(3)**2)
 
@@ -388,15 +481,25 @@ subroutine td_propagate_dftb(this, tq_step, E_field)
         call this%dftbp%setGeometry(this%coor)
         call this%dftbp%setExternalEfield(E_amp, E_field)
         call this%dftbp%getGradients(this%forces) !The force has the opposite sign of the gradient.
-        call this%dftbp%getEnergy(this%Et)
+        ! call this%dftbp%getEnergy(this%Et)
         call this%dftbp%getGrossCharges(this%at_charges)
 
         this%dip_old = this%dipole
         this%dipole  = M_ZERO
 
         do i = 1, this%n_atoms
-            this%coor_new(:, i) = 2.0d0*this%coor(:, i) - this%coor_old(:, i) - &
-                                 (this%forces(:, i) / this%at_masses(i)) * this%dt**2
+
+            if (this%init_velocities .and. tq_step == 1 ) then
+
+                this%coor_new(:, i) = this%coor(:, i) + this%vel(:, i) * this%dt - &
+                                    0.5*(this%forces(:, i) / this%at_masses(i)) * this%dt**2
+            
+            else
+                
+                this%coor_new(:, i) = 2.0d0*this%coor(:, i) - this%coor_old(:, i) - &
+                                    (this%forces(:, i) / this%at_masses(i)) * this%dt**2
+            end if
+
             this%dipole(:) = this%dipole(:) + this%at_charges(i) * this%coor(:,i)
 
             this%vel(:, i) = (this%coor_new(:, i) - this%coor_old(:, i)) / (2.0d0 * this%dt)
@@ -405,7 +508,9 @@ subroutine td_propagate_dftb(this, tq_step, E_field)
             this%Kinetic_Energy = this%Kinetic_Energy + 0.5d0 * this%at_masses(i) * vv
 
         end do
-    
+
+            this%Et = this%Kinetic_Energy
+
         this%coor_old = this%coor
         this%coor     = this%coor_new
 

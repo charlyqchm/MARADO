@@ -514,8 +514,8 @@ subroutine plane_waves_E_interactions(mxll, sources, mpi_coords, mpi_dims, time)
             v_vec    = sources%plane_waves(s)%v_vec
             dx_aux   = sources%plane_waves(s)%mxll_inc%dr
 
-            v1_vec   = CROSS_PRODUCT(v_vec, uz_vec)
-            v3_vec   = CROSS_PRODUCT(v1_vec, v_vec)
+            v1_vec   = sources%plane_waves(s)%v1_vec
+            v3_vec   = sources%plane_waves(s)%v3_vec
 
             cos_psi  = DCOS(sources%plane_waves(s)%psi)
             sin_psi  = DSIN(sources%plane_waves(s)%psi)
@@ -1185,8 +1185,8 @@ subroutine plane_waves_H_interactions(mxll, sources, mpi_coords, mpi_dims, time)
             v_vec    = sources%plane_waves(s)%v_vec
             dx_aux   = sources%plane_waves(s)%mxll_inc%dr
 
-            v1_vec   = CROSS_PRODUCT(v_vec, uz_vec)
-            v3_vec   = CROSS_PRODUCT(v1_vec, v_vec)
+            v1_vec   = sources%plane_waves(s)%v1_vec
+            v3_vec   = sources%plane_waves(s)%v3_vec
 
             cos_psi  = DCOS(sources%plane_waves(s)%psi-pi0/2)
             sin_psi  = DSIN(sources%plane_waves(s)%psi-pi0/2)

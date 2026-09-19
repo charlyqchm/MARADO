@@ -10,7 +10,10 @@ module q_sys_base_mod
         integer  :: id_file
         integer  :: t_steps
         integer  :: rank
+        integer  :: n_steps_src
+        integer  :: src_step
         logical  :: print_on
+        logical  :: external_src
         real(dp) :: dt
         real(dp) :: E0
         real(dp) :: Et
@@ -19,6 +22,8 @@ module q_sys_base_mod
         real(dp), allocatable :: dip_old(:)
         real(dp), allocatable :: dPt_dt(:)
         real(dp), allocatable :: dPt_dt_old(:)
+
+        real(dp), allocatable :: E_ext_field(:, :)
 
         contains
             procedure(init_interface)                , deferred :: init
@@ -53,10 +58,10 @@ module q_sys_base_mod
             class(TQ_sys_base), intent(inout) :: this
         end subroutine gs_calculate_interface
 
-        subroutine td_propagate_interface(this, tq_step, E_field)
+        subroutine td_propagate_interface(this, tq_step, E_field_in)
             import :: TQ_sys_base, dp
             class(TQ_sys_base), intent(inout) :: this
-            real(dp)     , intent(in)    :: E_field(3)
+            real(dp)     , intent(in)    :: E_field_in(3)
             integer      , intent(in)    :: tq_step
         end subroutine td_propagate_interface
 
