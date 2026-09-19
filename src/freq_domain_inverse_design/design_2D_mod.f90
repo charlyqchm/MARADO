@@ -309,6 +309,7 @@ subroutine opt_step_2D(this)
 
     integer  :: nx, ny
     integer  :: i, j
+    integer  :: ierr
     real(dp) :: norm_loc
     real(dp) :: norm_global
 
