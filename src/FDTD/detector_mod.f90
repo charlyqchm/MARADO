@@ -61,7 +61,13 @@ subroutine init_detector(this, field_ch, detector_ch, dimensions, &
     integer :: i_loc_min, j_loc_min, k_loc_min
     integer :: i_loc_max, j_loc_max, k_loc_max
 
-    nx_tot = grid_Ndims(1)*mpi_dims(1)
+    !In 1D, the full grid always lives on rank 0 (no domain decomposition),
+    !so grid_Ndims(1) is already the global size, unlike in 2D/3D.
+    if (dimensions == 1) then
+        nx_tot = grid_Ndims(1)
+    else
+        nx_tot = grid_Ndims(1)*mpi_dims(1)
+    end if
     ny_tot = grid_Ndims(2)*mpi_dims(2)
     nz_tot = grid_Ndims(3)*mpi_dims(3)
 

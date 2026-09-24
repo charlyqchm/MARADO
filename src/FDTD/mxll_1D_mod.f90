@@ -81,6 +81,7 @@ contains
 
         nz              = grid_Ndims(1)
         this%nz         = nz
+        this%mode       = mode
         this%n_media    = n_media
         this%boundaries = boundaries(1)
         this%dr         = dr
@@ -279,10 +280,14 @@ contains
         end if
 
         !~~~~~~ Hy ~~~~~~~~!
+        !$omp parallel default(shared) private(i)
+        !$omp do schedule(static)
         do i=1, nz-1
             this%Hy(i) = this%Hy(i) + this%dt_mu0 * (this%Ex(i)-this%Ex(i+1))*this%den_hz(i)
         enddo
-        
+        !$omp end do
+        !$omp end parallel
+
         if (this%cpml_pos(1)) then
             !  PML for the left side Hy
             do i=1,npml-1
@@ -329,6 +334,8 @@ contains
         nz   = this%nz
         npml = this%npml
 
+        !$omp parallel default(shared) private(i, rotH, Jx, no_medium)
+        !$omp do schedule(static)
         do i=2,nz-1
             rotH       = (this%Hy(i-1)-this%Hy(i))*this%den_ez(i)
 
@@ -341,10 +348,13 @@ contains
 
                 Jx = this%Jx_old(i) + (this%time - this%t_skip) * this%dJx(i)
 
-                this%Ex(i) = this%Ex(i) + this%dt_eps0*this%eps_x(i)*rotH - this%dt_eps0*Jx
+                this%Ex(i) = this%Ex(i) + this%dt_eps0*this%eps_x(i)*rotH - &
+                             this%dt_eps0*this%eps_x(i)*Jx
             end if
 
         end do             
+        !$omp end do
+        !$omp end parallel
 
         !  PML for the left side Ex
         if (this%cpml_pos(1)) then

@@ -900,7 +900,7 @@ subroutine write_3D_field(detectors, mxll, n_detectors, print_det_step, time, &
              
             case (Ez_FIELD)
 
-                write(funit, *) time, mxll%Ez(i_ndx,j_ndx,k_ndx)
+                write(funit, *) time, 0.5*(mxll%Ez(i_ndx,j_ndx,k_ndx-1)+mxll%Ez(i_ndx,j_ndx,k_ndx))
              
             case (Hx_FIELD)
 

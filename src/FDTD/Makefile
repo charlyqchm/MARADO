@@ -25,8 +25,8 @@ RPATH_FLAG ?=
 endif
 
 LIBS ?= -ldftbplus $(BLAS_LIBS)
-INCLUDE_DIR ?= $(DFTB_INSTALL)/include/dftbplus/modfiles
-LIB_DIR ?= $(DFTB_INSTALL)/lib
+INCLUDE_DIR ?= $(DFTB_INSTALL_DIR)/include/dftbplus/modfiles
+LIB_DIR ?= $(DFTB_LIB_DIR)
 
 BUILD ?= ../../build
 PROJECT ?= fdtd

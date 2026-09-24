@@ -110,6 +110,7 @@ subroutine init_detectors_outputs(n_detectors, t_det_print, dt_det_print, detect
     character(len=20) :: number
 
     if (n_detectors == 0) return
+    if (dimensions == 1 .and. myrank /= 0) return
 
     if (.not. allocated(detectors)) allocate(detectors(n_detectors))
 
@@ -275,6 +276,7 @@ subroutine write_detectors_outputs(detectors, mxll, n_detectors, t_step, print_d
 
     if (MOD(t_step, t_det_print) /= 0) return
     if (n_detectors == 0) return
+    if (mxll%dimensions == 1 .and. myrank /= 0) return
 
     select type (mxll)
     class is (TMxll_1D)
