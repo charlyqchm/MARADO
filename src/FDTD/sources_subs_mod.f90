@@ -504,17 +504,17 @@ subroutine init_plane_wave_src(this, input_ch, dim, dt, dr, grid_Ndims, mpi_coor
         this%limited_axis(2) = .false.
         this%limited_axis(3) = .false.
         phi                  =  0.0d0
-        theta                = 90.0d0
+        if (theta /= -90.0) theta = 90.0d0
     case ("plane_wave_ky")
         this%limited_axis(1) = .false.
         this%limited_axis(3) = .false.
         phi                  = 90.0d0
-        theta                = 90.0d0
+        if (theta /= -90.0) theta = 90.0d0
     case ("plane_wave_kz")
         this%limited_axis(1) = .false.
         this%limited_axis(2) = .false.
         phi                  = 0.0d0
-        theta                = 0.0d0
+        if (theta /= 180.0) theta = 0.0d0
     end select
 
     this%dim   = dim

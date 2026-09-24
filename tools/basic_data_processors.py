@@ -151,7 +151,7 @@ def plot_trans_spectrum_1D(directory=None, Ex_detector=1, Hy_detector=2,
     return
 
 
-def _read_energy_and_dipole_file(filename):
+def read_energy_and_dipole_file(filename):
     time_values = []
     molecule_data = {}
     current_time = None
@@ -239,7 +239,7 @@ def plot_energy_and_dipole(filename=None, molecule_ids=None, quantity="energy",
         print("Error: quantity must be one of: energy, mu_x, mu_y, mu_z.")
         return
 
-    data = _read_energy_and_dipole_file(filename)
+    data = read_energy_and_dipole_file(filename)
 
     if len(data) == 0:
         print("Error: no molecular data found in file.")

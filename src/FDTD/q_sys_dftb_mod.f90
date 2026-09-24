@@ -208,8 +208,22 @@ subroutine init_dftb(this, id, id_file, dt, t_steps, rank, print_on)
     end if 
 
     read (unit=funit, fmt=*, iostat=ierr) (atom_type_list(i), i=1,n_at_typ)
+    if (ierr /= 0) then
+        write(*,*) "Error: Could not read atom type list from file ", trim(input_name)
+        stop
+    end if
+
     read (unit=funit, fmt=*, iostat=ierr) (max_ang_orb(i), i=1,n_at_typ)
+    if (ierr /= 0) then
+        write(*,*) "Error: Could not read max angular momenta from file ", trim(input_name)
+        stop
+    end if
+
     read (unit=funit, fmt=*, iostat=ierr) scc_tol
+    if (ierr /= 0) then
+        write(*,*) "Error: Could not read SCC tolerance from file ", trim(input_name)
+        stop
+    end if
 
     read (unit=funit, fmt=*, iostat=ierr) 
 
@@ -224,6 +238,13 @@ subroutine init_dftb(this, id, id_file, dt, t_steps, rank, print_on)
                                                 this%vel(1,i), &
                                                 this%vel(2,i), &
                                                 this%vel(3,i)
+            if (ierr /= 0) then
+                write(*,*) "Error: Could not read atom name, coordinates and velocity for &
+                           &atom", i, "from file ", trim(input_name)
+                write(*,*) "Check that the file has 7 columns per atom line &
+                           &(name, x, y, z, vx, vy, vz) for this dynamics type."
+                stop
+            end if
             this%vel(:, i) = this%vel(:, i) * AA_to_au / ps_to_au
         else
 
@@ -231,6 +252,13 @@ subroutine init_dftb(this, id, id_file, dt, t_steps, rank, print_on)
                                                 this%coor(1,i), &
                                                 this%coor(2,i), &
                                                 this%coor(3,i)
+            if (ierr /= 0) then
+                write(*,*) "Error: Could not read atom name and coordinates for atom", i, &
+                           "from file ", trim(input_name)
+                write(*,*) "Check that the file has 4 columns per atom line &
+                           &(name, x, y, z) for this dynamics type."
+                stop
+            end if
 
         end if
 

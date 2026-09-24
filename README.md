@@ -16,7 +16,7 @@ The current implementation can run on a single node (with optional OpenMP parall
 
 - [DFTB+](https://github.com/dftbplus/dftbplus)
 - LAPACK
-- GCC / GNU Fortran (gfortran) >= 12.5.0
+- GCC / GNU Fortran (gfortran) >= 13.2.0
 
 Optional:
 - Open MPI >= 4.1.0 (for MPI parallel runs)
@@ -34,7 +34,8 @@ cmake --install .
 Once DFTB+ has been installed, set the `DFTB_INSTALL` environment variable to the installation prefix. For example:
 
 ```bash
-export DFTB_INSTALL=./dftbplus/_build/_install
+export DFTB_INSTALL_DIR=dftbplus/_build/_install
+export DFTB_LIB_DIR=$DFTB_INSTALL_DIR/lib # or lib64
 ```
 Then build MARADO from the cloned repository directory:
 ```bash

@@ -165,8 +165,12 @@ subroutine read_input_file(boundaries, mode_2D, dimensions, npml, grid_Ndims, &
     case ("full")
         mode_2D = FULL_2D_MODE
     case ("none")
-        write (*, '("none option selected for mxll_2D_mode")')
-        mode_2D = 0
+        if (dimensions == 2) then
+            write (*, '("none option selected for mxll_2D_mode")')
+            error stop
+        else if(dimensions == 1 .or. dimensions == 3) then
+            mode_2D = FULL_2D_MODE
+        end if
     case default
         write (*, '("mxll_2D_mode: ", A)') mxll_2D_mode
         write (*, '("Error: invalid 2D mode")')
