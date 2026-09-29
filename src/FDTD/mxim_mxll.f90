@@ -59,7 +59,7 @@ program mxim_mxll
 
     call write_program_header(myrank)
 
-    mxll = maxwell_factory(dimensions)
+    call maxwell_factory(dimensions, mxll)
 
     if (.not. allocated(q_groups)) allocate(q_groups(n_q_groups))
 
