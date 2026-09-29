@@ -74,6 +74,8 @@ contains
         real(dp) :: sig_to_au
         real(dp) :: sigmaCPML
 
+        this%dimensions = 1
+
 #ifdef USE_MPI
         if (mpi_coords(1)/=0) return
 #endif

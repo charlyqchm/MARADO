@@ -82,7 +82,7 @@ program mxim_mxll
     dt_q = dble(mxll%n_skip_steps)*dt
     Nt_q = 1 + int(Nt/mxll%n_skip_steps)
 
-    call write_modified_variables(dt, dt_q, dr, Nt, Nt_q, grid_Ndims, mpi_dims, mpi_coords, myrank)
+    call write_modified_variables(dt, dt_q, dr, Nt, Nt_q, grid_Ndims, dimensions, mpi_dims, mpi_coords, myrank)
 
     do i = 1, n_q_groups
         call q_groups(i)%init_q_group(i, dimensions, mpi_dims, mpi_coords, & 

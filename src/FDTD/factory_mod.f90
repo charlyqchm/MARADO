@@ -29,10 +29,10 @@ function maxwell_factory(dim) result(maxwell_obj)
 
 end function maxwell_factory
 
-function q_system_factory(sys_type, n_sys) result(q_sys_obj)
+subroutine q_system_factory(sys_type, n_sys, q_sys_obj)
     integer           , intent(in)  :: sys_type
     integer           , intent(in)  :: n_sys
-    class(TQ_sys_base), allocatable :: q_sys_obj(:)
+    class(TQ_sys_base), allocatable, intent(out) :: q_sys_obj(:)
 
     select case (sys_type)
     case (Q_SYS_DFTB)
@@ -41,7 +41,7 @@ function q_system_factory(sys_type, n_sys) result(q_sys_obj)
         error stop "The selected quantum system type is not implemented."
     end select
 
-end function q_system_factory
+end subroutine q_system_factory
 
 
 end module factory_mod

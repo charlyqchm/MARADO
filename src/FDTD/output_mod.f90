@@ -1,5 +1,8 @@
 module outputs_mod
 
+#ifdef USE_MPI
+    use mpi
+#endif
     use constants_mod
     use mxll_base_mod
     use mxll_1D_mod
@@ -38,7 +41,7 @@ end subroutine write_program_header
 
 !###################################################################################################
 
-subroutine write_modified_variables(dt, dt_q, dr,Nt, Nt_q, grid_Ndims, mpi_dims, mpi_coords, myrank)
+subroutine write_modified_variables(dt, dt_q, dr,Nt, Nt_q, grid_Ndims, dimensions, mpi_dims, mpi_coords, myrank)
 
     real(dp), intent(in)  :: dt
     real(dp), intent(in)  :: dt_q
@@ -46,9 +49,13 @@ subroutine write_modified_variables(dt, dt_q, dr,Nt, Nt_q, grid_Ndims, mpi_dims,
     integer , intent(in)  :: Nt
     integer , intent(in)  :: Nt_q
     integer , intent(in)  :: grid_Ndims(3)
+    integer , intent(in)  :: dimensions
     integer , intent(in)  :: mpi_dims(3)
     integer , intent(in)  :: mpi_coords(3)
     integer , intent(in)  :: myrank
+    integer :: n_total_ranks
+    integer :: n_total_grid_points
+    integer :: n_total_grid_points_per_node
 
     real(dp) :: x_min, x_max, y_min, y_max, z_min, z_max
 
@@ -61,6 +68,21 @@ subroutine write_modified_variables(dt, dt_q, dr,Nt, Nt_q, grid_Ndims, mpi_dims,
     z_min = (-int(grid_Ndims(3)*mpi_dims(3)/2) + 1)*dr
     z_max = ( int(grid_Ndims(3)*mpi_dims(3)/2)    )*dr
 
+    n_total_ranks = mpi_dims(1)*mpi_dims(2)*mpi_dims(3)
+
+    if (dimensions == 1) then
+        x_min = (-int(grid_Ndims(1)/2) + 1)*dr
+        x_max = ( int(grid_Ndims(1)/2)    )*dr
+        n_total_ranks = 1
+        n_total_grid_points_per_node = grid_Ndims(1)
+    else if (dimensions == 2) then
+        n_total_grid_points_per_node = grid_Ndims(1)*grid_Ndims(2)
+    else if (dimensions == 3) then
+        n_total_grid_points_per_node = grid_Ndims(1)*grid_Ndims(2)*grid_Ndims(3)
+    end if
+
+    n_total_grid_points = n_total_grid_points_per_node * n_total_ranks
+
     write(*,'("--------------------------------------------------------------")')
     write(*,'("Modified variables:")')
     write(*,'("--------------------------------------------------------------")')
@@ -68,13 +90,21 @@ subroutine write_modified_variables(dt, dt_q, dr,Nt, Nt_q, grid_Ndims, mpi_dims,
     write(*,'("q-system dt = ", ES14.8, " a.u.")') dt_q
     write(*,'("Total number of Mxll time steps     = ", I12)') Nt
     write(*,'("Total number of q-system time steps = ", I12)') Nt_q
-    write(*,'("Total grid points per node = ", I12)') grid_Ndims(1)*grid_Ndims(2)*grid_Ndims(3)
-    write(*,'("Total grid points          = ", I12)') &
-           grid_Ndims(1)*grid_Ndims(2)*grid_Ndims(3)*mpi_dims(1)*mpi_dims(2)*mpi_dims(3)
+    write(*,'("Total number of ranks          = ", I12)') mpi_dims(1)*mpi_dims(2)*mpi_dims(3)
+    write(*,'("Total grid points per rank = ", I12)') n_total_grid_points_per_node
+    write(*,'("Total grid points          = ", I12)') n_total_grid_points
+
     write(*,'("Grid boundaries:")')
     write(*,'("  x_min = ", F12.6, " nm, x_max = ", F12.6, " nm")') x_min*au_to_nm, x_max*au_to_nm
-    write(*,'("  y_min = ", F12.6, " nm, y_max = ", F12.6, " nm")') y_min*au_to_nm, y_max*au_to_nm
-    write(*,'("  z_min = ", F12.6, " nm, z_max = ", F12.6, " nm")') z_min*au_to_nm, z_max*au_to_nm
+
+    if (dimensions > 1) then
+        write(*,'("  y_min = ", F12.6, " nm, y_max = ", F12.6, " nm")') y_min*au_to_nm, y_max*au_to_nm
+    end if
+
+    if (dimensions == 3) then
+        write(*,'("  z_min = ", F12.6, " nm, z_max = ", F12.6, " nm")') z_min*au_to_nm, z_max*au_to_nm
+    end if
+    
     write(*,'("--------------------------------------------------------------")')
 
 
@@ -341,6 +371,10 @@ subroutine init_q_groups_outputs(q_groups, n_q_groups, dt_q_print, t_q_print, dt
         end do
 
     end if
+
+#ifdef USE_MPI
+    call mpi_barrier(MPI_COMM_WORLD, ierr)
+#endif
 
 end subroutine init_q_groups_outputs
 

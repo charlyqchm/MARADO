@@ -186,6 +186,7 @@ subroutine read_input_file(boundaries, mode_2D, dimensions, npml, grid_Ndims, &
         case ("cpml")
             boundaries(i) = CPML_BOUNDARIES
         case ("none")
+            boundaries(i) = CLOSE_BOUNDARIES
             write (*, '("none option selected for boundary condition in axis ", I0)') i
         case default
             write (*, '("Error: invalid boundary condition in axis ", I0)') i
