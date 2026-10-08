@@ -117,6 +117,8 @@ subroutine write_gral_output(this, iter_step, fom, beta, grad_max, myrank)
 
         write(this%unit_general_output, *) iter_step, fom, beta, grad_max
 
+        flush(this%unit_general_output)
+
     end if
 
 end subroutine write_gral_output

@@ -12,6 +12,7 @@ module q_group_mod
     type TQ_group
 
         class(TQ_sys_base), allocatable :: q_sys(:)
+        integer :: group_id
         integer :: group_type
         integer :: q_sys_type
         integer :: n_systems
@@ -96,6 +97,7 @@ contains
         this%dt = dt
         this%Nt_steps = Nt_steps
         this%density = density
+        this%group_id = group_id
 
         n_ker = this%n_ker
 
@@ -373,7 +375,7 @@ contains
             rank_counter = 0
             n = 1 
             do i = 1, this%n_systems
-                global_i  = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+                global_i  = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
                 
                 this%map(i,1) = rank_counter
                 this%map(i,2) = 0
@@ -552,10 +554,11 @@ contains
             rank_counter = 0
             n = 1 
             do i = 1, this%n_systems
-                
+                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+
                 do ii = -this%n_ker, this%n_ker
                     this%kernel_map(i,ii,0,0,1) = rank_counter
-                    this%kernel_map(i,ii,0,0,1) = 0
+                    this%kernel_map(i,ii,0,0,2) = 0
                     this%kernel_map(i,ii,0,0,3) = ii + global_i
                 end do
 
@@ -757,7 +760,7 @@ contains
         if (.not. allocated(this%q_sys)) then
             select case (this%q_sys_type)
             case (Q_SYS_DFTB)
-                this%q_sys = q_system_factory(this%q_sys_type, this%n_sys_loc)
+                call q_system_factory(this%q_sys_type, this%n_sys_loc, this%q_sys)
             case default
                 write(*,*) "Error: Unknown Q_sys type in init_all_q_systems."
                 stop
@@ -770,6 +773,10 @@ contains
                 if (myrank == this%map(i,1)) then
                     n_mol = n_mol + 1
                     call this%q_sys(n_mol)%init(mol_id(i), id_file(i), dt, Nt_steps, myrank, print_on(i))
+
+                    write(*,'("Q system", I6," of group", I6, ", in rank", I4, " initialized")') &
+                        mol_id(i), this%group_id, myrank
+
                 end if
             end do
         else if (this%group_type == Q_SINGLE) then
@@ -777,6 +784,8 @@ contains
                 if (myrank == this%kernel_map(i,0,0,0,1)) then
                     n_mol = n_mol + 1
                     call this%q_sys(n_mol)%init(mol_id(i), id_file(i), dt, Nt_steps, myrank, print_on(i))
+                    write(*,'("Q system", I6," of group", I6, ", in rank", I4, " initialized")') &
+                        mol_id(i), this%group_id, myrank
                 end if
             end do
         else

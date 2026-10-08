@@ -166,7 +166,7 @@ subroutine BICGStab_L(A_op, f_vec, j_vec, f_vec_out, Af_vec, eps_r, converged, t
 
             call A_op%apply_operator(r_vec(l), r_vec(l+1), eps_r, transpose)
 
-            call dot_product_V1_V2(r_vec(l+1), r_vec(l+1), dot_product)
+!            call dot_product_V1_V2(r_vec(l+1), r_vec(l+1), dot_product)
 
             call self_linear_op_V1_aV2(f_vec_out, u_vec(0), alpha)
 

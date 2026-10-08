@@ -55,8 +55,9 @@ contains
         if (.not. allocated(coords)) allocate(coords(ndims))
         if (.not. allocated(proc_coords)) allocate(proc_coords(nprocs, ndims))
 
-        dims   = 1
-        coords = 0
+        mpi_coords = 0
+        dims       = 1
+        coords     = 0
 
         periods = .false.
         do i=1, ndims

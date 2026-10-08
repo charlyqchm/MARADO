@@ -77,9 +77,9 @@ subroutine init_operator(this, dr, freq, dimensions, grid_Ndims, n_pml, n_der, &
         this%nz         = grid_Ndims(3)
     end if
 
-    if (.not. allocated(this%s_inv_x)) allocate(this%s_inv_x(this%nx))
-    if (.not. allocated(this%s_inv_y)) allocate(this%s_inv_y(this%ny))
-    if (.not. allocated(this%s_inv_z)) allocate(this%s_inv_z(this%nz))
+    if (.not. allocated(this%s_inv_x)) allocate(this%s_inv_x(-n_der+1:this%nx+n_der))
+    if (.not. allocated(this%s_inv_y)) allocate(this%s_inv_y(-n_der+1:this%ny+n_der))
+    if (.not. allocated(this%s_inv_z)) allocate(this%s_inv_z(-n_der+1:this%nz+n_der))
     
     this%s_inv_x = Z_ONE
     this%s_inv_y = Z_ONE
@@ -186,7 +186,7 @@ subroutine init_operator(this, dr, freq, dimensions, grid_Ndims, n_pml, n_der, &
         do i = 1, n_pml
             sig   = sig_max * (DBLE(n_pml-i+1)/DBLE(n_pml))**m_pml
             kappa = 1.0d0 + (kappa_max_pml - 1.0d0) * ((DBLE(n_pml-i+1)/DBLE(n_pml)))**m_pml
-            s_i   = Z_ONE*kappa + sig / (Z_I * this%w0 * eps0)
+            s_i   = Z_ONE*kappa - sig / (Z_I * this%w0 * eps0)
             this%s_inv_x(i) = (1.0d0 / s_i)
         end do
     end if
@@ -196,7 +196,7 @@ subroutine init_operator(this, dr, freq, dimensions, grid_Ndims, n_pml, n_der, &
         do i = n_pml, 1, -1
             sig   = sig_max * ((DBLE(n_pml-i+1)/DBLE(n_pml)))**m_pml
             kappa = 1.0d0 + (kappa_max_pml - 1.0d0) * ((DBLE(n_pml-i+1)/DBLE(n_pml)))**m_pml
-            s_i   = Z_ONE*kappa + sig / (Z_I * this%w0 * eps0)
+            s_i   = Z_ONE*kappa - sig / (Z_I * this%w0 * eps0)
             this%s_inv_x(ii) = (1.0d0 / s_i)
             ii = ii + 1
         end do
@@ -206,7 +206,7 @@ subroutine init_operator(this, dr, freq, dimensions, grid_Ndims, n_pml, n_der, &
         do i = 1, n_pml
             sig   = sig_max * (DBLE(n_pml-i+1)/DBLE(n_pml))**m_pml
             kappa = 1.0d0 + (kappa_max_pml - 1.0d0) * (DBLE(n_pml-i+1)/DBLE(n_pml))**m_pml
-            s_i   = Z_ONE*kappa + sig / (Z_I * this%w0 * eps0)
+            s_i   = Z_ONE*kappa - sig / (Z_I * this%w0 * eps0)
             this%s_inv_y(i) = (1.0d0 / s_i)
         end do
     end if
@@ -216,7 +216,7 @@ subroutine init_operator(this, dr, freq, dimensions, grid_Ndims, n_pml, n_der, &
         do i = n_pml, 1, -1
             sig   = sig_max * (DBLE(n_pml-i+1)/DBLE(n_pml))**m_pml
             kappa = 1.0d0 + (kappa_max_pml - 1.0d0) * (DBLE(n_pml-i+1)/DBLE(n_pml))**m_pml
-            s_i   = Z_ONE*kappa + sig / (Z_I * this%w0 * eps0)
+            s_i   = Z_ONE*kappa - sig / (Z_I * this%w0 * eps0)
             this%s_inv_y(ii) = (1.0d0 / s_i)
             ii = ii + 1
         end do
@@ -226,7 +226,7 @@ subroutine init_operator(this, dr, freq, dimensions, grid_Ndims, n_pml, n_der, &
         do i = 1, n_pml
             sig   = sig_max * (DBLE(n_pml-i+1)/DBLE(n_pml))**m_pml
             kappa = 1.0d0 + (kappa_max_pml - 1.0d0) * (DBLE(n_pml-i+1)/DBLE(n_pml))**m_pml
-            s_i   = Z_ONE*kappa + sig / (Z_I * this%w0 * eps0)
+            s_i   = Z_ONE*kappa - sig / (Z_I * this%w0 * eps0)
             this%s_inv_z(i) = (1.0d0 / s_i)
         end do
     end if
@@ -236,7 +236,7 @@ subroutine init_operator(this, dr, freq, dimensions, grid_Ndims, n_pml, n_der, &
         do i = n_pml, 1, -1
             sig   = sig_max * (DBLE(n_pml-i+1)/DBLE(n_pml))**m_pml
             kappa = 1.0d0 + (kappa_max_pml - 1.0d0) * (DBLE(n_pml-i+1)/DBLE(n_pml))**m_pml
-            s_i   = Z_ONE*kappa + sig / (Z_I * this%w0 * eps0)
+            s_i   = Z_ONE*kappa - sig / (Z_I * this%w0 * eps0)
             this%s_inv_z(ii) = (1.0d0 / s_i)
             ii = ii + 1
         end do
@@ -300,13 +300,10 @@ subroutine apply_operator_1D(Aop, f_vec, Af_vec, eps_r, transpose)
     complex(dp) :: dfpydz, dfpxdz, dfmydz, dfmxdz
     complex(dp) :: C1, C2, C3, C4
     complex(dp) :: Ex
-    integer     :: sign = 1
     integer     :: i, ii
     integer     :: n_ghost
 
-    if (transpose) sign = -1
-
-    C1 =  sign * c0 * Z_I
+    C1 =  c0 * Z_I
     C2 = -Aop%w0 * Z_I
     C3 = -Aop%w0 * Z_I / (2.0d0 * eps0)
     C4 =  Z_ONE * eps0
@@ -330,32 +327,63 @@ subroutine apply_operator_1D(Aop, f_vec, Af_vec, eps_r, transpose)
     end if
 #endif
 
-    !$omp parallel default(shared) private(i, ii, dfpxdz, dfpydz, dfmxdz, dfmydz, Ex)
-    !$omp do schedule(static)
-    do i = 1, f_vec%nx
-        
-        dfpxdz = Z_0
-        dfpydz = Z_0
-        dfmxdz = Z_0
-        dfmydz = Z_0
+    if (.not. transpose) then
+        !$omp parallel default(shared) private(i, ii, dfpxdz, dfpydz, dfmxdz, dfmydz, Ex)
+        !$omp do schedule(static)
+        do i = 1, f_vec%nx
+            
+            dfpxdz = Z_0
+            dfpydz = Z_0
+            dfmxdz = Z_0
+            dfmydz = Z_0
 
-        do ii = -Aop%n_der, Aop%n_der
-            dfpxdz = dfpxdz + Aop%coef_der(ii) * f_vec%pl_x(i+ii)
-            dfpydz = dfpydz + Aop%coef_der(ii) * f_vec%pl_y(i+ii)
-            dfmxdz = dfmxdz + Aop%coef_der(ii) * f_vec%mi_x(i+ii)
-            dfmydz = dfmydz + Aop%coef_der(ii) * f_vec%mi_y(i+ii)
+            do ii = -Aop%n_der, Aop%n_der
+                dfpxdz = dfpxdz + Aop%coef_der(ii) * f_vec%pl_x(i+ii)
+                dfpydz = dfpydz + Aop%coef_der(ii) * f_vec%pl_y(i+ii)
+                dfmxdz = dfmxdz + Aop%coef_der(ii) * f_vec%mi_x(i+ii)
+                dfmydz = dfmydz + Aop%coef_der(ii) * f_vec%mi_y(i+ii)
+            end do
+
+            Ex = f_vec%pl_x(i) + f_vec%mi_x(i)
+
+            Af_vec%pl_x(i) = -C1 * dfpydz * Aop%s_inv_x(i) + C2 * f_vec%pl_x(i) + &
+                                C3 * (eps_r%mat1D(i) - C4) * Ex
+            Af_vec%pl_y(i) =  C1 * dfpxdz * Aop%s_inv_x(i) +  C2 * f_vec%pl_y(i)
+            Af_vec%mi_x(i) =  C1 * dfmydz * Aop%s_inv_x(i) + C2 * f_vec%mi_x(i) + C3 * (eps_r%mat1D(i) - C4) * Ex
+            Af_vec%mi_y(i) = -C1 * dfmxdz * Aop%s_inv_x(i) + C2 * f_vec%mi_y(i)
         end do
+        !$omp end do
+        !$omp end parallel
+    
+    else
 
-        Ex = f_vec%pl_x(i) + f_vec%mi_x(i)
+        !$omp parallel default(shared) private(i, ii, dfpxdz, dfpydz, dfmxdz, dfmydz, Ex)
+        !$omp do schedule(static)
+        do i = 1, f_vec%nx
+            
+            dfpxdz = Z_0
+            dfpydz = Z_0
+            dfmxdz = Z_0
+            dfmydz = Z_0
 
-        Af_vec%pl_x(i) = -C1 * dfpydz * Aop%s_inv_x(i) + C2 * f_vec%pl_x(i) + &
-                            C3 * (eps_r%mat1D(i) - C4) * Ex
-        Af_vec%pl_y(i) =  C1 * dfpxdz * Aop%s_inv_x(i) +  C2 * f_vec%pl_y(i)
-        Af_vec%mi_x(i) =  C1 * dfmydz * Aop%s_inv_x(i) + C2 * f_vec%mi_x(i) + C3 * (eps_r%mat1D(i) - C4) * Ex
-        Af_vec%mi_y(i) = -C1 * dfmxdz * Aop%s_inv_x(i) + C2 * f_vec%mi_y(i)
-    end do
-    !$omp end do
-    !$omp end parallel
+            do ii = -Aop%n_der, Aop%n_der
+                dfpxdz = dfpxdz + Aop%coef_der(ii) * f_vec%pl_x(i+ii)* Aop%s_inv_x(i+ii)
+                dfpydz = dfpydz + Aop%coef_der(ii) * f_vec%pl_y(i+ii)* Aop%s_inv_x(i+ii)
+                dfmxdz = dfmxdz + Aop%coef_der(ii) * f_vec%mi_x(i+ii)* Aop%s_inv_x(i+ii)
+                dfmydz = dfmydz + Aop%coef_der(ii) * f_vec%mi_y(i+ii)* Aop%s_inv_x(i+ii)
+            end do
+
+            Ex = f_vec%pl_x(i) + f_vec%mi_x(i)
+
+            Af_vec%pl_x(i) = -C1 * dfpydz + C2 * f_vec%pl_x(i) + C3 * (eps_r%mat1D(i) - C4) * Ex
+            Af_vec%pl_y(i) =  C1 * dfpxdz + C2 * f_vec%pl_y(i)
+            Af_vec%mi_x(i) =  C1 * dfmydz + C2 * f_vec%mi_x(i) + C3 * (eps_r%mat1D(i) - C4) * Ex
+            Af_vec%mi_y(i) = -C1 * dfmxdz + C2 * f_vec%mi_y(i)
+        end do
+        !$omp end do
+        !$omp end parallel
+
+    end if
     
 end subroutine apply_operator_1D
 
@@ -371,14 +399,11 @@ subroutine apply_operator_2D(Aop, f_vec, Af_vec, eps_r, transpose)
     complex(dp) :: dfmzdy, dfmzdx, dfmxdy, dfmydx
     complex(dp) :: C1, C2, C3, C4
     complex(dp) :: Ex, Ey, Ez
-    integer     :: sign = 1
     integer     :: i, ii
     integer     :: j, jj
     integer     :: n_ghost
 
-    if (transpose) sign = -1
-
-    C1 =  sign * c0 * Z_I
+    C1 =  c0 * Z_I
     C2 = -Aop%w0 * Z_I
     C3 = -Aop%w0 * Z_I / (2.0d0 * eps0)
     C4 =  Z_ONE * eps0
@@ -447,68 +472,125 @@ subroutine apply_operator_2D(Aop, f_vec, Af_vec, eps_r, transpose)
     end if
 #endif
 
+    if (.not. transpose) then
 
-    !$omp parallel default(shared) private(i, j, ii, jj, dfpxdy, dfpydx, &
-    !$omp& dfpzdx, dfpzdy, dfmxdy, dfmydx, dfmzdx, dfmzdy, Ex, Ey, Ez)
-    !$omp do collapse(2) schedule(static)
-    do j = 1, f_vec%ny
-    do i = 1, f_vec%nx
+        !$omp parallel default(shared) private(i, j, ii, jj, dfpxdy, dfpydx, &
+        !$omp& dfpzdx, dfpzdy, dfmxdy, dfmydx, dfmzdx, dfmzdy, Ex, Ey, Ez)
+        !$omp do collapse(2) schedule(static)
+        do j = 1, f_vec%ny
+        do i = 1, f_vec%nx
+        
+            dfpxdy = Z_0
+            dfpydx = Z_0
+            dfpzdx = Z_0
+            dfpzdy = Z_0
+
+            dfmxdy = Z_0
+            dfmydx = Z_0
+            dfmzdx = Z_0
+            dfmzdy = Z_0
+
+            do ii = -Aop%n_der, Aop%n_der
+                dfpydx = dfpydx + Aop%coef_der(ii) * f_vec%pl_y(i+ii,j)
+                dfpzdx = dfpzdx + Aop%coef_der(ii) * f_vec%pl_z(i+ii,j)
+                dfmydx = dfmydx + Aop%coef_der(ii) * f_vec%mi_y(i+ii,j)
+                dfmzdx = dfmzdx + Aop%coef_der(ii) * f_vec%mi_z(i+ii,j)
+            end do
+
+            do jj = -Aop%n_der, Aop%n_der
+                dfpxdy = dfpxdy + Aop%coef_der(jj) * f_vec%pl_x(i,j+jj)
+                dfpzdy = dfpzdy + Aop%coef_der(jj) * f_vec%pl_z(i,j+jj)
+                dfmxdy = dfmxdy + Aop%coef_der(jj) * f_vec%mi_x(i,j+jj)
+                dfmzdy = dfmzdy + Aop%coef_der(jj) * f_vec%mi_z(i,j+jj)
+            end do
+
+            Ex = f_vec%pl_x(i,j) + f_vec%mi_x(i,j)
+            Ey = f_vec%pl_y(i,j) + f_vec%mi_y(i,j)
+            Ez = f_vec%pl_z(i,j) + f_vec%mi_z(i,j)
+
+            dfpxdy = dfpxdy * Aop%s_inv_y(j)
+            dfpydx = dfpydx * Aop%s_inv_x(i)
+            dfpzdx = dfpzdx * Aop%s_inv_x(i)
+            dfpzdy = dfpzdy * Aop%s_inv_y(j)
+
+            dfmxdy = dfmxdy * Aop%s_inv_y(j)
+            dfmydx = dfmydx * Aop%s_inv_x(i)
+            dfmzdx = dfmzdx * Aop%s_inv_x(i)
+            dfmzdy = dfmzdy * Aop%s_inv_y(j)
+
+            Af_vec%pl_x(i,j) =   C1 * dfpzdy + C2 * f_vec%pl_x(i,j) + &
+                                    C3 * (eps_r%mat2D(i,j) - C4) * Ex
+            Af_vec%pl_y(i,j) =  -C1 * dfpzdx + C2 * f_vec%pl_y(i,j) + &
+                                    C3 * (eps_r%mat2D(i,j) - C4) * Ey
+            Af_vec%pl_z(i,j) =   C1 * (dfpydx - dfpxdy) + C2 * f_vec%pl_z(i,j) + &
+                                    C3 * (eps_r%mat2D(i,j) - C4) * Ez
+            Af_vec%mi_x(i,j) =  -C1 * dfmzdy + C2 * f_vec%mi_x(i,j) + &
+                                    C3 * (eps_r%mat2D(i,j) - C4) * Ex
+            Af_vec%mi_y(i,j) =   C1 * dfmzdx + C2 * f_vec%mi_y(i,j) + &
+                                    C3 * (eps_r%mat2D(i,j) - C4) * Ey
+            Af_vec%mi_z(i,j) =  -C1 * (dfmydx - dfmxdy) + C2 * f_vec%mi_z(i,j) + &
+                                    C3 * (eps_r%mat2D(i,j) - C4) * Ez
+
+        end do
+        end do
+        !$omp end do
+        !$omp end parallel
     
-        dfpxdy = Z_0
-        dfpydx = Z_0
-        dfpzdx = Z_0
-        dfpzdy = Z_0
+    else
 
-        dfmxdy = Z_0
-        dfmydx = Z_0
-        dfmzdx = Z_0
-        dfmzdy = Z_0
+        !$omp parallel default(shared) private(i, j, ii, jj, dfpxdy, dfpydx, &
+        !$omp& dfpzdx, dfpzdy, dfmxdy, dfmydx, dfmzdx, dfmzdy, Ex, Ey, Ez)
+        !$omp do collapse(2) schedule(static)
+        do j = 1, f_vec%ny
+        do i = 1, f_vec%nx
+        
+            dfpxdy = Z_0
+            dfpydx = Z_0
+            dfpzdx = Z_0
+            dfpzdy = Z_0
 
-        do ii = -Aop%n_der, Aop%n_der
-            dfpydx = dfpydx + Aop%coef_der(ii) * f_vec%pl_y(i+ii,j)
-            dfpzdx = dfpzdx + Aop%coef_der(ii) * f_vec%pl_z(i+ii,j)
-            dfmydx = dfmydx + Aop%coef_der(ii) * f_vec%mi_y(i+ii,j)
-            dfmzdx = dfmzdx + Aop%coef_der(ii) * f_vec%mi_z(i+ii,j)
+            dfmxdy = Z_0
+            dfmydx = Z_0
+            dfmzdx = Z_0
+            dfmzdy = Z_0
+
+            do ii = -Aop%n_der, Aop%n_der
+                dfpydx = dfpydx + Aop%coef_der(ii) * f_vec%pl_y(i+ii,j) * Aop%s_inv_x(i+ii)
+                dfpzdx = dfpzdx + Aop%coef_der(ii) * f_vec%pl_z(i+ii,j) * Aop%s_inv_x(i+ii)
+                dfmydx = dfmydx + Aop%coef_der(ii) * f_vec%mi_y(i+ii,j) * Aop%s_inv_x(i+ii)
+                dfmzdx = dfmzdx + Aop%coef_der(ii) * f_vec%mi_z(i+ii,j) * Aop%s_inv_x(i+ii)
+            end do
+
+            do jj = -Aop%n_der, Aop%n_der
+                dfpxdy = dfpxdy + Aop%coef_der(jj) * f_vec%pl_x(i,j+jj) * Aop%s_inv_y(j+jj)
+                dfpzdy = dfpzdy + Aop%coef_der(jj) * f_vec%pl_z(i,j+jj) * Aop%s_inv_y(j+jj)
+                dfmxdy = dfmxdy + Aop%coef_der(jj) * f_vec%mi_x(i,j+jj) * Aop%s_inv_y(j+jj)
+                dfmzdy = dfmzdy + Aop%coef_der(jj) * f_vec%mi_z(i,j+jj) * Aop%s_inv_y(j+jj)
+            end do
+
+            Ex = f_vec%pl_x(i,j) + f_vec%mi_x(i,j)
+            Ey = f_vec%pl_y(i,j) + f_vec%mi_y(i,j)
+            Ez = f_vec%pl_z(i,j) + f_vec%mi_z(i,j)
+
+            Af_vec%pl_x(i,j) =   C1 * dfpzdy + C2 * f_vec%pl_x(i,j) + &
+                                    C3 * (eps_r%mat2D(i,j) - C4) * Ex
+            Af_vec%pl_y(i,j) =  -C1 * dfpzdx + C2 * f_vec%pl_y(i,j) + &
+                                    C3 * (eps_r%mat2D(i,j) - C4) * Ey
+            Af_vec%pl_z(i,j) =   C1 * (dfpydx - dfpxdy) + C2 * f_vec%pl_z(i,j) + &
+                                    C3 * (eps_r%mat2D(i,j) - C4) * Ez
+            Af_vec%mi_x(i,j) =  -C1 * dfmzdy + C2 * f_vec%mi_x(i,j) + &
+                                    C3 * (eps_r%mat2D(i,j) - C4) * Ex
+            Af_vec%mi_y(i,j) =   C1 * dfmzdx + C2 * f_vec%mi_y(i,j) + &
+                                    C3 * (eps_r%mat2D(i,j) - C4) * Ey
+            Af_vec%mi_z(i,j) =  -C1 * (dfmydx - dfmxdy) + C2 * f_vec%mi_z(i,j) + &
+                                    C3 * (eps_r%mat2D(i,j) - C4) * Ez
+
         end do
-
-        do jj = -Aop%n_der, Aop%n_der
-            dfpxdy = dfpxdy + Aop%coef_der(jj) * f_vec%pl_x(i,j+jj)
-            dfpzdy = dfpzdy + Aop%coef_der(jj) * f_vec%pl_z(i,j+jj)
-            dfmxdy = dfmxdy + Aop%coef_der(jj) * f_vec%mi_x(i,j+jj)
-            dfmzdy = dfmzdy + Aop%coef_der(jj) * f_vec%mi_z(i,j+jj)
         end do
+        !$omp end do
+        !$omp end parallel
 
-        Ex = f_vec%pl_x(i,j) + f_vec%mi_x(i,j)
-        Ey = f_vec%pl_y(i,j) + f_vec%mi_y(i,j)
-        Ez = f_vec%pl_z(i,j) + f_vec%mi_z(i,j)
-
-        dfpxdy = dfpxdy * Aop%s_inv_y(j)
-        dfpydx = dfpydx * Aop%s_inv_x(i)
-        dfpzdx = dfpzdx * Aop%s_inv_x(i)
-        dfpzdy = dfpzdy * Aop%s_inv_y(j)
-
-        dfmxdy = dfmxdy * Aop%s_inv_y(j)
-        dfmydx = dfmydx * Aop%s_inv_x(i)
-        dfmzdx = dfmzdx * Aop%s_inv_x(i)
-        dfmzdy = dfmzdy * Aop%s_inv_y(j)
-
-        Af_vec%pl_x(i,j) =  -C1 * dfpzdy + C2 * f_vec%pl_x(i,j) + &
-                                C3 * (eps_r%mat2D(i,j) - C4) * Ex
-        Af_vec%pl_y(i,j) =   C1 * dfpzdx + C2 * f_vec%pl_y(i,j) + &
-                                C3 * (eps_r%mat2D(i,j) - C4) * Ey
-        Af_vec%pl_z(i,j) =  -C1 * (dfpydx - dfpxdy) + C2 * f_vec%pl_z(i,j) + &
-                                C3 * (eps_r%mat2D(i,j) - C4) * Ez
-        Af_vec%mi_x(i,j) =   C1 * dfmzdy + C2 * f_vec%mi_x(i,j) + &
-                                C3 * (eps_r%mat2D(i,j) - C4) * Ex
-        Af_vec%mi_y(i,j) =  -C1 * dfmzdx + C2 * f_vec%mi_y(i,j) + &
-                                C3 * (eps_r%mat2D(i,j) - C4) * Ey
-        Af_vec%mi_z(i,j) =   C1 * (dfmydx - dfmxdy) + C2 * f_vec%mi_z(i,j) + &
-                                C3 * (eps_r%mat2D(i,j) - C4) * Ez
-
-    end do
-    end do
-    !$omp end do
-    !$omp end parallel
+    end if
 
 end subroutine apply_operator_2D
 
@@ -525,15 +607,12 @@ subroutine apply_operator_3D(Aop, f_vec, Af_vec, eps_r, transpose)
     complex(dp) :: dfmydz, dfmzdx, dfmxdy, dfmydx, dfmzdy, dfmxdz
     complex(dp) :: C1, C2, C3, C4
     complex(dp) :: Ex, Ey, Ez
-    integer     :: sign = 1
     integer     :: i, ii
     integer     :: j, jj
     integer     :: k, kk
     integer     :: n_ghost
 
-    if (transpose) sign = -1
-
-    C1 =  sign * c0 * Z_I
+    C1 =  c0 * Z_I
     C2 = -Aop%w0 * Z_I
     C3 = -Aop%w0 * Z_I / (2.0d0 * eps0)
     C4 =  Z_ONE * eps0
@@ -622,86 +701,169 @@ subroutine apply_operator_3D(Aop, f_vec, Af_vec, eps_r, transpose)
 
 #endif
 
+    if (.not. transpose) then
 
-    !$omp parallel default(shared) private(i, j, k, ii, jj, kk, dfpxdy, dfpxdz, &
-    !$omp& dfpydx, dfpydz, dfpzdx, dfpzdy, dfmxdz, dfmxdy, dfmydz, dfmydx, &
-    !$omp& dfmzdx, dfmzdy, Ex, Ey, Ez)
-    !$omp do collapse(3) schedule(static)
-    do k = 1, f_vec%nz
-    do j = 1, f_vec%ny
-    do i = 1, f_vec%nx
-    
-        dfpxdy = Z_0
-        dfpxdz = Z_0
-        dfpydx = Z_0
-        dfpydz = Z_0
-        dfpzdx = Z_0
-        dfpzdy = Z_0
+        !$omp parallel default(shared) private(i, j, k, ii, jj, kk, dfpxdy, dfpxdz, &
+        !$omp& dfpydx, dfpydz, dfpzdx, dfpzdy, dfmxdz, dfmxdy, dfmydz, dfmydx, &
+        !$omp& dfmzdx, dfmzdy, Ex, Ey, Ez)
+        !$omp do collapse(3) schedule(static)
+        do k = 1, f_vec%nz
+        do j = 1, f_vec%ny
+        do i = 1, f_vec%nx
+        
+            dfpxdy = Z_0
+            dfpxdz = Z_0
+            dfpydx = Z_0
+            dfpydz = Z_0
+            dfpzdx = Z_0
+            dfpzdy = Z_0
 
-        dfmxdz = Z_0
-        dfmxdy = Z_0
-        dfmydz = Z_0
-        dfmydx = Z_0
-        dfmzdx = Z_0
-        dfmzdy = Z_0
+            dfmxdz = Z_0
+            dfmxdy = Z_0
+            dfmydz = Z_0
+            dfmydx = Z_0
+            dfmzdx = Z_0
+            dfmzdy = Z_0
 
-        do ii = -Aop%n_der, Aop%n_der
-            dfpydx = dfpydx + Aop%coef_der(ii) * f_vec%pl_y(i+ii,j,k)
-            dfpzdx = dfpzdx + Aop%coef_der(ii) * f_vec%pl_z(i+ii,j,k)
-            dfmydx = dfmydx + Aop%coef_der(ii) * f_vec%mi_y(i+ii,j,k)
-            dfmzdx = dfmzdx + Aop%coef_der(ii) * f_vec%mi_z(i+ii,j,k)
+            do ii = -Aop%n_der, Aop%n_der
+                dfpydx = dfpydx + Aop%coef_der(ii) * f_vec%pl_y(i+ii,j,k)
+                dfpzdx = dfpzdx + Aop%coef_der(ii) * f_vec%pl_z(i+ii,j,k)
+                dfmydx = dfmydx + Aop%coef_der(ii) * f_vec%mi_y(i+ii,j,k)
+                dfmzdx = dfmzdx + Aop%coef_der(ii) * f_vec%mi_z(i+ii,j,k)
+            end do
+
+            do jj = -Aop%n_der, Aop%n_der
+                dfpxdy = dfpxdy + Aop%coef_der(jj) * f_vec%pl_x(i,j+jj,k)
+                dfpzdy = dfpzdy + Aop%coef_der(jj) * f_vec%pl_z(i,j+jj,k)
+                dfmxdy = dfmxdy + Aop%coef_der(jj) * f_vec%mi_x(i,j+jj,k)
+                dfmzdy = dfmzdy + Aop%coef_der(jj) * f_vec%mi_z(i,j+jj,k)
+            end do
+
+            do kk = -Aop%n_der, Aop%n_der
+                dfpxdz = dfpxdz + Aop%coef_der(kk) * f_vec%pl_x(i,j,k+kk)
+                dfpydz = dfpydz + Aop%coef_der(kk) * f_vec%pl_y(i,j,k+kk)
+                dfmxdz = dfmxdz + Aop%coef_der(kk) * f_vec%mi_x(i,j,k+kk)
+                dfmydz = dfmydz + Aop%coef_der(kk) * f_vec%mi_y(i,j,k+kk)
+            end do
+        
+            Ex = f_vec%pl_x(i,j,k) + f_vec%mi_x(i,j,k)
+            Ey = f_vec%pl_y(i,j,k) + f_vec%mi_y(i,j,k)
+            Ez = f_vec%pl_z(i,j,k) + f_vec%mi_z(i,j,k)
+
+            dfpxdy = dfpxdy * Aop%s_inv_y(j)
+            dfpxdz = dfpxdz * Aop%s_inv_z(k)
+            dfpydx = dfpydx * Aop%s_inv_x(i)
+            dfpydz = dfpydz * Aop%s_inv_z(k)
+            dfpzdx = dfpzdx * Aop%s_inv_x(i)
+            dfpzdy = dfpzdy * Aop%s_inv_y(j)
+            dfmxdy = dfmxdy * Aop%s_inv_y(j)
+            dfmxdz = dfmxdz * Aop%s_inv_z(k)
+            dfmydz = dfmydz * Aop%s_inv_z(k)
+            dfmydx = dfmydx * Aop%s_inv_x(i)
+            dfmzdx = dfmzdx * Aop%s_inv_x(i)
+            dfmzdy = dfmzdy * Aop%s_inv_y(j)
+
+            Af_vec%pl_x(i,j,k) =  C1 * (dfpzdy - dfpydz) + C2 * f_vec%pl_x(i,j,k) + &
+                                    C3 * (eps_r%mat3D(i,j,k) - C4) * Ex
+            Af_vec%pl_y(i,j,k) =  C1 * (dfpxdz - dfpzdx) + C2 * f_vec%pl_y(i,j,k) + &
+                                    C3 * (eps_r%mat3D(i,j,k) - C4) * Ey
+            Af_vec%pl_z(i,j,k) =  C1 * (dfpydx - dfpxdy) + C2 * f_vec%pl_z(i,j,k) + &
+                                    C3 * (eps_r%mat3D(i,j,k) - C4) * Ez
+            Af_vec%mi_x(i,j,k) = -C1 * (dfmzdy - dfmydz) + C2 * f_vec%mi_x(i,j,k) + &
+                                    C3 * (eps_r%mat3D(i,j,k) - C4) * Ex
+            Af_vec%mi_y(i,j,k) = -C1 * (dfmxdz - dfmzdx) + C2 * f_vec%mi_y(i,j,k) + &
+                                    C3 * (eps_r%mat3D(i,j,k) - C4) * Ey
+            Af_vec%mi_z(i,j,k) = -C1 * (dfmydx - dfmxdy) + C2 * f_vec%mi_z(i,j,k) + &
+                                    C3 * (eps_r%mat3D(i,j,k) - C4) * Ez
+
         end do
-
-        do jj = -Aop%n_der, Aop%n_der
-            dfpxdy = dfpxdy + Aop%coef_der(jj) * f_vec%pl_x(i,j+jj,k)
-            dfpzdy = dfpzdy + Aop%coef_der(jj) * f_vec%pl_z(i,j+jj,k)
-            dfmxdy = dfmxdy + Aop%coef_der(jj) * f_vec%mi_x(i,j+jj,k)
-            dfmzdy = dfmzdy + Aop%coef_der(jj) * f_vec%mi_z(i,j+jj,k)
         end do
-
-        do kk = -Aop%n_der, Aop%n_der
-            dfpxdz = dfpxdz + Aop%coef_der(kk) * f_vec%pl_x(i,j,k+kk)
-            dfpydz = dfpydz + Aop%coef_der(kk) * f_vec%pl_y(i,j,k+kk)
-            dfmxdz = dfmxdz + Aop%coef_der(kk) * f_vec%mi_x(i,j,k+kk)
-            dfmydz = dfmydz + Aop%coef_der(kk) * f_vec%mi_y(i,j,k+kk)
         end do
-    
-        Ex = f_vec%pl_x(i,j,k) + f_vec%mi_x(i,j,k)
-        Ey = f_vec%pl_y(i,j,k) + f_vec%mi_y(i,j,k)
-        Ez = f_vec%pl_z(i,j,k) + f_vec%mi_z(i,j,k)
+        !$omp end do
+        !$omp end parallel
 
-        dfpxdy = dfpxdy * Aop%s_inv_y(j)
-        dfpxdz = dfpxdz * Aop%s_inv_z(k)
-        dfpydx = dfpydx * Aop%s_inv_x(i)
-        dfpydz = dfpydz * Aop%s_inv_z(k)
-        dfpzdx = dfpzdx * Aop%s_inv_x(i)
-        dfpzdy = dfpzdy * Aop%s_inv_y(j)
-        dfmxdy = dfmxdy * Aop%s_inv_y(j)
-        dfmxdz = dfmxdz * Aop%s_inv_z(k)
-        dfmydz = dfmydz * Aop%s_inv_z(k)
-        dfmydx = dfmydx * Aop%s_inv_x(i)
-        dfmzdx = dfmzdx * Aop%s_inv_x(i)
-        dfmzdy = dfmzdy * Aop%s_inv_y(j)
+    else
 
-        Af_vec%pl_x(i,j,k) =  C1 * (dfpzdy - dfpydz) + C2 * f_vec%pl_x(i,j,k) + &
-                                C3 * (eps_r%mat3D(i,j,k) - C4) * Ex
-        Af_vec%pl_y(i,j,k) =  C1 * (dfpxdz - dfpzdx) + C2 * f_vec%pl_y(i,j,k) + &
-                                C3 * (eps_r%mat3D(i,j,k) - C4) * Ey
-        Af_vec%pl_z(i,j,k) =  C1 * (dfpydx - dfpxdy) + C2 * f_vec%pl_z(i,j,k) + &
-                                C3 * (eps_r%mat3D(i,j,k) - C4) * Ez
-        Af_vec%mi_x(i,j,k) = -C1 * (dfmzdy - dfmydz) + C2 * f_vec%mi_x(i,j,k) + &
-                                C3 * (eps_r%mat3D(i,j,k) - C4) * Ex
-        Af_vec%mi_y(i,j,k) = -C1 * (dfmxdz - dfmzdx) + C2 * f_vec%mi_y(i,j,k) + &
-                                C3 * (eps_r%mat3D(i,j,k) - C4) * Ey
-        Af_vec%mi_z(i,j,k) = -C1 * (dfmydx - dfmxdy) + C2 * f_vec%mi_z(i,j,k) + &
-                                C3 * (eps_r%mat3D(i,j,k) - C4) * Ez
+        !$omp parallel default(shared) private(i, j, k, ii, jj, kk, dfpxdy, dfpxdz, &
+        !$omp& dfpydx, dfpydz, dfpzdx, dfpzdy, dfmxdz, dfmxdy, dfmydz, dfmydx, &
+        !$omp& dfmzdx, dfmzdy, Ex, Ey, Ez)
+        !$omp do collapse(3) schedule(static)
+        do k = 1, f_vec%nz
+        do j = 1, f_vec%ny
+        do i = 1, f_vec%nx
+        
+            dfpxdy = Z_0
+            dfpxdz = Z_0
+            dfpydx = Z_0
+            dfpydz = Z_0
+            dfpzdx = Z_0
+            dfpzdy = Z_0
 
-    end do
-    end do
-    end do
-    !$omp end do
-    !$omp end parallel
+            dfmxdz = Z_0
+            dfmxdy = Z_0
+            dfmydz = Z_0
+            dfmydx = Z_0
+            dfmzdx = Z_0
+            dfmzdy = Z_0
 
+            do ii = -Aop%n_der, Aop%n_der
+                dfpydx = dfpydx + Aop%coef_der(ii) * f_vec%pl_y(i+ii,j,k) * Aop%s_inv_x(i+ii)
+                dfpzdx = dfpzdx + Aop%coef_der(ii) * f_vec%pl_z(i+ii,j,k) * Aop%s_inv_x(i+ii)
+                dfmydx = dfmydx + Aop%coef_der(ii) * f_vec%mi_y(i+ii,j,k) * Aop%s_inv_x(i+ii)
+                dfmzdx = dfmzdx + Aop%coef_der(ii) * f_vec%mi_z(i+ii,j,k) * Aop%s_inv_x(i+ii)
+            end do
+
+            do jj = -Aop%n_der, Aop%n_der
+                dfpxdy = dfpxdy + Aop%coef_der(jj) * f_vec%pl_x(i,j+jj,k) * Aop%s_inv_y(j+jj)
+                dfpzdy = dfpzdy + Aop%coef_der(jj) * f_vec%pl_z(i,j+jj,k) * Aop%s_inv_y(j+jj)
+                dfmxdy = dfmxdy + Aop%coef_der(jj) * f_vec%mi_x(i,j+jj,k) * Aop%s_inv_y(j+jj)
+                dfmzdy = dfmzdy + Aop%coef_der(jj) * f_vec%mi_z(i,j+jj,k) * Aop%s_inv_y(j+jj)
+            end do
+
+            do kk = -Aop%n_der, Aop%n_der
+                dfpxdz = dfpxdz + Aop%coef_der(kk) * f_vec%pl_x(i,j,k+kk) * Aop%s_inv_z(k+kk)
+                dfpydz = dfpydz + Aop%coef_der(kk) * f_vec%pl_y(i,j,k+kk) * Aop%s_inv_z(k+kk)
+                dfmxdz = dfmxdz + Aop%coef_der(kk) * f_vec%mi_x(i,j,k+kk) * Aop%s_inv_z(k+kk)
+                dfmydz = dfmydz + Aop%coef_der(kk) * f_vec%mi_y(i,j,k+kk) * Aop%s_inv_z(k+kk)
+            end do
+        
+            Ex = f_vec%pl_x(i,j,k) + f_vec%mi_x(i,j,k)
+            Ey = f_vec%pl_y(i,j,k) + f_vec%mi_y(i,j,k)
+            Ez = f_vec%pl_z(i,j,k) + f_vec%mi_z(i,j,k)
+
+            dfpxdy = dfpxdy * Aop%s_inv_y(j)
+            dfpxdz = dfpxdz * Aop%s_inv_z(k)
+            dfpydx = dfpydx * Aop%s_inv_x(i)
+            dfpydz = dfpydz * Aop%s_inv_z(k)
+            dfpzdx = dfpzdx * Aop%s_inv_x(i)
+            dfpzdy = dfpzdy * Aop%s_inv_y(j)
+            dfmxdy = dfmxdy * Aop%s_inv_y(j)
+            dfmxdz = dfmxdz * Aop%s_inv_z(k)
+            dfmydz = dfmydz * Aop%s_inv_z(k)
+            dfmydx = dfmydx * Aop%s_inv_x(i)
+            dfmzdx = dfmzdx * Aop%s_inv_x(i)
+            dfmzdy = dfmzdy * Aop%s_inv_y(j)
+
+            Af_vec%pl_x(i,j,k) =  C1 * (dfpzdy - dfpydz) + C2 * f_vec%pl_x(i,j,k) + &
+                                    C3 * (eps_r%mat3D(i,j,k) - C4) * Ex
+            Af_vec%pl_y(i,j,k) =  C1 * (dfpxdz - dfpzdx) + C2 * f_vec%pl_y(i,j,k) + &
+                                    C3 * (eps_r%mat3D(i,j,k) - C4) * Ey
+            Af_vec%pl_z(i,j,k) =  C1 * (dfpydx - dfpxdy) + C2 * f_vec%pl_z(i,j,k) + &
+                                    C3 * (eps_r%mat3D(i,j,k) - C4) * Ez
+            Af_vec%mi_x(i,j,k) = -C1 * (dfmzdy - dfmydz) + C2 * f_vec%mi_x(i,j,k) + &
+                                    C3 * (eps_r%mat3D(i,j,k) - C4) * Ex
+            Af_vec%mi_y(i,j,k) = -C1 * (dfmxdz - dfmzdx) + C2 * f_vec%mi_y(i,j,k) + &
+                                    C3 * (eps_r%mat3D(i,j,k) - C4) * Ey
+            Af_vec%mi_z(i,j,k) = -C1 * (dfmydx - dfmxdy) + C2 * f_vec%mi_z(i,j,k) + &
+                                    C3 * (eps_r%mat3D(i,j,k) - C4) * Ez
+
+        end do
+        end do
+        end do
+        !$omp end do
+        !$omp end parallel
+
+    end if
 
 end subroutine apply_operator_3D
 

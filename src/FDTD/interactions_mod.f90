@@ -28,7 +28,7 @@ subroutine point_source_interactions(mxll, sources)
     real(dp) :: J_av
     real(dp) :: c_src
 
-    c_src = mxll%dt_eps0/mxll%dr/c0/2.0d0
+    c_src = mxll%dt/mxll%dr*c0*2.0d0
 
     select type(mxll)
     class is(TMxll_1D)

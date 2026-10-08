@@ -807,10 +807,6 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
 
         case(DL_MEDIUM)
 
-            do i=1, media(idx)%n_poles
-                PLi_old(i) = PLi(i)
-            end do
-
             tmpE = media(idx)%C1 * Ei + media(idx)%C2 * Ei_old + media(idx)%C3 * rotH &
                    - media(idx)%C4 * PDi
 
@@ -829,6 +825,7 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
             Ei_old = Ei
             
             do i=1, media(idx)%n_poles
+                PLi_old(i) = PLi(i)
                 PLi(i)     = tmpPL(i)
             end do
             

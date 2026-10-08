@@ -12,9 +12,9 @@ module factory_mod
 
 contains
 
-function maxwell_factory(dim) result(maxwell_obj)
+subroutine maxwell_factory(dim, maxwell_obj)
     integer, intent(in) :: dim
-    class(TMxll), allocatable :: maxwell_obj
+    class(TMxll), allocatable, intent(out) :: maxwell_obj
 
     select case (dim)
     case (1)
@@ -27,12 +27,12 @@ function maxwell_factory(dim) result(maxwell_obj)
         error stop "The selected dim, must be 1, 2, or 3."
     end select
 
-end function maxwell_factory
+end subroutine maxwell_factory
 
-function q_system_factory(sys_type, n_sys) result(q_sys_obj)
+subroutine q_system_factory(sys_type, n_sys, q_sys_obj)
     integer           , intent(in)  :: sys_type
     integer           , intent(in)  :: n_sys
-    class(TQ_sys_base), allocatable :: q_sys_obj(:)
+    class(TQ_sys_base), allocatable, intent(out) :: q_sys_obj(:)
 
     select case (sys_type)
     case (Q_SYS_DFTB)
@@ -41,7 +41,7 @@ function q_system_factory(sys_type, n_sys) result(q_sys_obj)
         error stop "The selected quantum system type is not implemented."
     end select
 
-end function q_system_factory
+end subroutine q_system_factory
 
 
 end module factory_mod

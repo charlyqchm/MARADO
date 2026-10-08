@@ -83,6 +83,8 @@ contains
 
         sig_to_au =  C_to_au**2*sec_to_au/(kg_to_au*m_to_au**3)
 
+        this%dimensions = 2
+
         nx = grid_Ndims(1)
         ny = grid_Ndims(2)
       
