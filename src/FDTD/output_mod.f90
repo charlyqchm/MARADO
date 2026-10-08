@@ -139,17 +139,21 @@ subroutine init_detectors_outputs(n_detectors, t_det_print, dt_det_print, detect
     character(len=99) :: full_dirname
     character(len=20) :: number
 
-    if (n_detectors == 0) return
-    if (dimensions == 1 .and. myrank /= 0) return
-
-    if (.not. allocated(detectors)) allocate(detectors(n_detectors))
-
+    if (n_detectors == 0) then
+        t_det_print = 1
+        return
+    end if
+    
     t_det_print = int(dt_det_print/dt)
 
     if (t_det_print <= 0) then
         write(*, *) "Error: dt_det_print must be greater than Maxwell dt."
         error stop
     end if
+
+    if (dimensions == 1 .and. myrank /= 0) return
+
+    if (.not. allocated(detectors)) allocate(detectors(n_detectors))
 
     open (action='read', file=input_name, iostat=ierr, newunit=funit)
 
