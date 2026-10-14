@@ -506,6 +506,8 @@ subroutine td_propagate_dftb(this, tq_step, E_field_in)
     if (this%dyn_type == DFTB_BO_DYN) then
         this%Kinetic_Energy = M_ZERO
 
+        if (E_amp /= M_ZERO) E_field = E_field / E_amp
+        
         call this%dftbp%setGeometry(this%coor)
         call this%dftbp%setExternalEfield(E_amp, E_field)
         call this%dftbp%getGradients(this%forces) !The force has the opposite sign of the gradient.
