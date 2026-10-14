@@ -406,7 +406,7 @@ def dftb_molecule_file(file_number=1, n_atoms=None, n_atom_types=None,
 
 def sources_file(source_type=None, polarization=None, field_amp=None, frequency=None, t0=None, tau=None, t_init=None, t_end=None, phase=None,
                 r0=None, radius=None, phi=None, theta=None, psi=None, x_min=None, x_max=None, y_min=None, y_max=None, z_min=None, z_max=None,
-                w0=None, d_src=None, lenght=None, height=None,
+                w0=None, d_src=None, length=None, height=None,
                 file_exists=False, help=False):
     
     if help:
@@ -443,21 +443,21 @@ def sources_file(source_type=None, polarization=None, field_amp=None, frequency=
             "       - y_min, y_max -> Minimum and maximum y coordinates of the region limited for the plane wave source in nm. \n"
             "       - z_min, z_max -> Minimum and maximum z coordinates of the region limited for the plane wave source in nm. \n"
 
-            "   Variables for gaussian beam source \n"
+            "   Variables for gaussbeam source \n"
             "       - field_amp    -> Field amplitude in atomic units.\n"
-            "       - phi          -> Angle between the x-axis and the projection of the wavevector of the \"gaussian_beam\" source on the xy-plane in degrees. \n"
-            "       - theta        -> Angle between the z-axis and the wavevector of the \"gaussian_beam\" source in degrees. \n"
-            "       - psi          -> Rotation angle of the electric field around the wavevector of the \"gaussian_beam\" source in degrees. \n"
-            "                         For psi=0, the electric field is parallel to \"k x z\", where k is the wavevector of the gaussian beam. \n"
+            "       - phi          -> Angle between the x-axis and the projection of the wavevector of the \"gaussbeam\" source on the xy-plane in degrees. \n"
+            "       - theta        -> Angle between the z-axis and the wavevector of the \"gaussbeam\" source in degrees. \n"
+            "       - psi          -> Rotation angle of the electric field around the wavevector of the \"gaussbeam\" source in degrees. \n"
+            "                         For psi=0, the electric field is parallel to \"k x z\", where k is the wavevector of the gaussbeam. \n"
             "       - frequency    -> Source frequency in eV.\n"
             "       - t0           -> Time origin of the source in fs.\n"
             "       - tau          -> Full width at half maximum (FWHM) of the pulse in fs.\n"
             "       - phase        -> Phase of the source in degrees.\n"
-            "       - w0           -> Beam waist of the gaussian beam in nm.\n"
-            "       - r0(3)        -> Array of coordinates of the focus of the gaussian beam in nm.\n"
-            "       - d_src        -> Distance from the position of the source respect to the focus of the gaussian beam. \n"
-            "                         This distance is measured along the propagation direction of the gaussian beam. \n"
-            "       - lenght       -> Size of the line (for the 2D case) or one side of the plane (for the 3D case) where the source will be inserted in nm. \n"
+            "       - w0           -> Beam waist of the gaussbeam in nm.\n"
+            "       - r0(3)        -> Array of coordinates of the focus of the gaussbeam in nm.\n"
+            "       - d_src        -> Distance from the position of the source respect to the focus of the gaussbeam. \n"
+            "                         This distance is measured along the propagation direction of the gaussbeam. \n"
+            "       - length       -> Size of the line (for the 2D case) or one side of the plane (for the 3D case) where the source will be inserted in nm. \n"
             "       - height       -> Height of the plane (for the 3D case) where the source will be inserted in nm. \n "
 
             " \n"
@@ -466,7 +466,7 @@ def sources_file(source_type=None, polarization=None, field_amp=None, frequency=
 
         return
 
-    if source_type is None or source_type != "point" and source_type != "plane_wave" and source_type != "gaussian_beam":
+    if source_type is None or source_type != "point" and source_type != "plane_wave" and source_type != "gaussbeam":
         print("Error: source_type must be specified.")
         return
     
@@ -485,11 +485,11 @@ def sources_file(source_type=None, polarization=None, field_amp=None, frequency=
                   "       must be specified for a \"plane_wave\" source.")
             return
 
-    if source_type == "gaussian_beam":
+    if source_type == "gaussbeam":
         if field_amp is None or phi is None or theta is None or psi is None or frequency is None or t0 is None or tau is None \
-        or phase is None or w0 is None or r0 is None or d_src is None or lenght is None or height is None:
+        or phase is None or w0 is None or r0 is None or d_src is None or length is None or height is None:
         
-            print("Error: field_amp, phi, theta, psi, frequency, t0, tau, phase, w0, r0, d_src, lenght and height must be specified for a \"gaussian_beam\" source.")
+            print("Error: field_amp, phi, theta, psi, frequency, t0, tau, phase, w0, r0, d_src, length and height must be specified for a \"gaussbeam\" source.")
             return
         
         if not isinstance(r0, list) or len(r0) != 3:
@@ -520,10 +520,10 @@ def sources_file(source_type=None, polarization=None, field_amp=None, frequency=
         str(frequency) + "   " + str(t0) + "   " + str(tau) + "   " + str(x_min) + " " + str(x_max) + " " + str(y_min) + " " +  \
         str(y_max) + " " + str(z_min) + " " + str(z_max) + "   " + str(t_init) + "   " + str(t_end) + "   " + str(phase) + "\n")
 
-    if source_type == "gaussian_beam":
+    if source_type == "gaussbeam":
         source_file.write("\"" + source_type + "\"   " + str(field_amp) + "   " + str(phi)+ "   " + str(theta) + "   " + str(psi) + "   " + \
         str(frequency) + "   " + str(phase) + "   " + str(r0[0]) + " " + str(r0[1]) + " " + str(r0[2]) + "   " + str(w0) + "   " +    \
-        str(t0) + "   "+ str(tau) + "   " + str(d_src) + "   " + str(lenght) + "   " + str(height) + "\n")
+        str(t0) + "   "+ str(tau) + "   " + str(d_src) + "   " + str(length) + "   " + str(height) + "\n")
     source_file.close()
 
     return

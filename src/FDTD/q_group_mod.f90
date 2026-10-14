@@ -774,9 +774,6 @@ contains
                     n_mol = n_mol + 1
                     call this%q_sys(n_mol)%init(mol_id(i), id_file(i), dt, Nt_steps, myrank, print_on(i))
 
-                    write(*,'("Q system", I6," of group", I6, ", in rank", I4, " initialized")') &
-                        mol_id(i), this%group_id, myrank
-
                 end if
             end do
         else if (this%group_type == Q_SINGLE) then
@@ -784,8 +781,6 @@ contains
                 if (myrank == this%kernel_map(i,0,0,0,1)) then
                     n_mol = n_mol + 1
                     call this%q_sys(n_mol)%init(mol_id(i), id_file(i), dt, Nt_steps, myrank, print_on(i))
-                    write(*,'("Q system", I6," of group", I6, ", in rank", I4, " initialized")') &
-                        mol_id(i), this%group_id, myrank
                 end if
             end do
         else
@@ -800,8 +795,23 @@ contains
 
     !Calculate initial ground state
     !TO-DO: this should be somewhere else.
-        do i = 1, this%n_sys_loc
-            call this%q_sys(i)%gs_calculate()
+        n_mol = 0
+        do i = 1, this%n_systems
+            if (this%group_type == Q_MATERIAL) then
+                if (myrank == this%map(i,1)) then
+                    n_mol = n_mol + 1
+                    call this%q_sys(n_mol)%gs_calculate()
+                    write(*,'("Q system", I6," of group", I6, ", in rank", I4, " initialized")') &
+                        mol_id(i), this%group_id, myrank
+                end if
+            else if (this%group_type == Q_SINGLE) then
+                if (myrank == this%kernel_map(i,0,0,0,1)) then
+                    n_mol = n_mol + 1
+                    call this%q_sys(n_mol)%gs_calculate()
+                    write(*,'("Q system", I6," of group", I6, ", in rank", I4, " initialized")') &
+                        mol_id(i), this%group_id, myrank
+                end if
+            end if
         end do
 
     end subroutine init_all_q_systems
