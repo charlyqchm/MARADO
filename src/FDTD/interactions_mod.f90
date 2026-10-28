@@ -24,7 +24,8 @@ subroutine point_source_interactions(mxll, sources)
 
     integer  :: i, j, k, s
     integer  :: i_id, j_id, k_id
-    integer  :: n_ker
+    integer  :: n_ker_max
+    integer  :: n_ker_x_min, n_ker_y_min, n_ker_z_min
     real(dp) :: J_av
     real(dp) :: c_src
 
@@ -38,10 +39,14 @@ subroutine point_source_interactions(mxll, sources)
 #endif
 
         do s=1, sources%n_p_src
-            n_ker = sources%points(s)%n_ker
+            n_ker_max   = sources%points(s)%n_ker_max
+            n_ker_x_min = sources%points(s)%n_ker_x_min
+            n_ker_y_min = sources%points(s)%n_ker_y_min
+            n_ker_z_min = sources%points(s)%n_ker_z_min
+            
             select case (sources%points(s)%polarization)
             case ('x')
-                do i=-n_ker, n_ker
+                do i = n_ker_x_min, n_ker_max
                     i_id = sources%points(s)%ind_i(i,1,1)
                     J_av = sources%points(s)%J_mat(i,1,1)
                     mxll%Ex(i_id) = mxll%Ex(i_id) + c_src * J_av
@@ -55,7 +60,9 @@ subroutine point_source_interactions(mxll, sources)
     class is(TMxll_2D)
     
         do s=1, sources%n_p_src
-            n_ker = sources%points(s)%n_ker
+            n_ker_max = sources%points(s)%n_ker_max
+            n_ker_x_min = sources%points(s)%n_ker_x_min
+            n_ker_y_min = sources%points(s)%n_ker_y_min 
 
             ! In 2D, allowed source polarizations depend on the selected mode.
             if (mxll%mode == TEZ_2D_MODE .and. trim(sources%points(s)%polarization) == 'z') then
@@ -68,40 +75,30 @@ subroutine point_source_interactions(mxll, sources)
 
             select case (sources%points(s)%polarization)
             case ('x')
-                do i=-n_ker, n_ker
-                do j=-n_ker, n_ker
+                do i = n_ker_x_min, n_ker_max
+                do j = n_ker_y_min, n_ker_max
                     if (sources%points(s)%in_this_rank(i,j,1)) then
                         i_id = sources%points(s)%ind_i(i,j,1)
                         j_id = sources%points(s)%ind_j(i,j,1)
-                        if (i==n_ker) then
-                            J_av = 0.5d0*sources%points(s)%J_mat(i,j,1)
-                        else
-                            J_av = 0.5d0*(sources%points(s)%J_mat(i,j,1) + &
-                                        sources%points(s)%J_mat(i+1,j,1))
-                        end if
+                        J_av = sources%points(s)%J_mat(i,j,1) 
                         mxll%Ex(i_id,j_id) = mxll%Ex(i_id,j_id) + c_src * J_av
                     end if
                 end do
                 end do
             case ('y')
-                do i=-n_ker, n_ker
-                do j=-n_ker, n_ker
+                do i = n_ker_x_min, n_ker_max
+                do j = n_ker_y_min, n_ker_max
                     if (sources%points(s)%in_this_rank(i,j,1)) then
                         i_id = sources%points(s)%ind_i(i,j,1)
                         j_id = sources%points(s)%ind_j(i,j,1)
-                        if (j==n_ker) then
-                            J_av = 0.5d0*sources%points(s)%J_mat(i,j,1)
-                        else
-                            J_av = 0.5d0*(sources%points(s)%J_mat(i,j,1) + &
-                                        sources%points(s)%J_mat(i,j+1,1))
-                        end if
+                        J_av = sources%points(s)%J_mat(i,j,1) 
                         mxll%Ey(i_id,j_id) = mxll%Ey(i_id,j_id) + c_src * J_av
                     end if
                 end do
                 end do
             case ('z')
-                do i=-n_ker, n_ker
-                do j=-n_ker, n_ker
+                do i = n_ker_x_min, n_ker_max
+                do j = n_ker_y_min, n_ker_max
                     if (sources%points(s)%in_this_rank(i,j,1)) then
                         i_id = sources%points(s)%ind_i(i,j,1)
                         j_id = sources%points(s)%ind_j(i,j,1)
@@ -119,60 +116,49 @@ subroutine point_source_interactions(mxll, sources)
     class is(TMxll_3D)
     
         do s=1, sources%n_p_src
-            n_ker = sources%points(s)%n_ker
+            n_ker_max   = sources%points(s)%n_ker_max
+            n_ker_x_min = sources%points(s)%n_ker_x_min
+            n_ker_y_min = sources%points(s)%n_ker_y_min
+            n_ker_z_min = sources%points(s)%n_ker_z_min
+
             select case (sources%points(s)%polarization)
             case ('x')
-                do i=-n_ker, n_ker
-                do j=-n_ker, n_ker
-                do k=-n_ker, n_ker
+                do i= n_ker_x_min, n_ker_max
+                do j= n_ker_y_min, n_ker_max
+                do k= n_ker_z_min, n_ker_max
                     if (sources%points(s)%in_this_rank(i,j,k)) then
                         i_id = sources%points(s)%ind_i(i,j,k)
                         j_id = sources%points(s)%ind_j(i,j,k)
                         k_id = sources%points(s)%ind_k(i,j,k)
-                        if (i==n_ker) then
-                            J_av = 0.5d0*sources%points(s)%J_mat(i,j,k)
-                        else
-                            J_av = 0.5d0*(sources%points(s)%J_mat(i,j,k) + &
-                                        sources%points(s)%J_mat(i+1,j,k))
-                        end if
+                        J_av = sources%points(s)%J_mat(i,j,k)
                         mxll%Ex(i_id,j_id,k_id) = mxll%Ex(i_id,j_id,k_id) + c_src * J_av
                     end if
                 end do
                 end do
                 end do
             case ('y')
-                do i=-n_ker, n_ker
-                do j=-n_ker, n_ker
-                do k=-n_ker, n_ker
+                do i= n_ker_x_min, n_ker_max
+                do j= n_ker_y_min, n_ker_max
+                do k= n_ker_z_min, n_ker_max
                     if (sources%points(s)%in_this_rank(i,j,k)) then
                         i_id = sources%points(s)%ind_i(i,j,k)
                         j_id = sources%points(s)%ind_j(i,j,k)
                         k_id = sources%points(s)%ind_k(i,j,k)
-                        if (j==n_ker) then
-                            J_av = 0.5d0*sources%points(s)%J_mat(i,j,k)
-                        else
-                            J_av = 0.5d0*(sources%points(s)%J_mat(i,j,k) + &
-                                        sources%points(s)%J_mat(i,j+1,k))
-                        end if
+                        J_av = sources%points(s)%J_mat(i,j,k)
                         mxll%Ey(i_id,j_id,k_id) = mxll%Ey(i_id,j_id,k_id) + c_src * J_av
                     end if
                 end do
                 end do
                 end do
             case ('z')
-                do i=-n_ker, n_ker
-                do j=-n_ker, n_ker
-                do k=-n_ker, n_ker
+                do i= n_ker_x_min, n_ker_max
+                do j= n_ker_y_min, n_ker_max
+                do k= n_ker_z_min, n_ker_max
                     if (sources%points(s)%in_this_rank(i,j,k)) then
                         i_id = sources%points(s)%ind_i(i,j,k)
                         j_id = sources%points(s)%ind_j(i,j,k)
                         k_id = sources%points(s)%ind_k(i,j,k)
-                        if (k==n_ker) then
-                            J_av = 0.5d0*sources%points(s)%J_mat(i,j,k)
-                        else
-                            J_av = 0.5d0*(sources%points(s)%J_mat(i,j,k) + &
-                                        sources%points(s)%J_mat(i,j,k+1))
-                        end if
+                        J_av = sources%points(s)%J_mat(i,j,k)
                         mxll%Ez(i_id,j_id,k_id) = mxll%Ez(i_id,j_id,k_id) + c_src * J_av
                     end if
                 end do
@@ -2154,7 +2140,8 @@ subroutine send_E_2D_to_J_ranks(mxll, q_group, myrank)
                                                             mxll%Ex(i_idx, j_idx))
                     q_group%E_field_list(n_mol, 2) = 0.5d0*(mxll%Ey(i_idx, j_idx-1)+ &
                                                             mxll%Ey(i_idx, j_idx))
-                else if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+                end if
+                if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
                     q_group%E_field_list(n_mol, 3) = mxll%Ez(i_idx, j_idx)
 
                 end if
@@ -2169,7 +2156,8 @@ subroutine send_E_2D_to_J_ranks(mxll, q_group, myrank)
                                                     mxll%Ex(i_idx, j_idx))
                         E_field_send(2) =  0.5d0*(mxll%Ey(i_idx, j_idx-1)+ &
                                                     mxll%Ey(i_idx, j_idx))
-                    else if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+                    end if
+                    if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
                         E_field_send(3) = mxll%Ez(i_idx, j_idx)
                     end if
 
@@ -2208,8 +2196,9 @@ subroutine send_E_2D_to_J_ranks(mxll, q_group, myrank)
                                                             mxll%Ex(i_idx, j_idx))
                     q_group%E_field_list(n_mol, 2) = 0.5d0*(mxll%Ey(i_idx, j_idx-1)+ &
                                                             mxll%Ey(i_idx, j_idx))
+                end if
 
-                else if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+                if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
                     q_group%E_field_list(n_mol, 3) = mxll%Ez(i_idx, j_idx)
                 end if
                 
@@ -2223,7 +2212,8 @@ subroutine send_E_2D_to_J_ranks(mxll, q_group, myrank)
                                                     mxll%Ex(i_idx, j_idx))
                         E_field_send(2) =  0.5d0*(mxll%Ey(i_idx, j_idx-1)+ &
                                                     mxll%Ey(i_idx, j_idx))
-                    else if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+                    end if
+                    if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
                         E_field_send(3) = mxll%Ez(i_idx, j_idx)
                     end if
                 
@@ -2263,7 +2253,10 @@ subroutine send_E_2D_to_J_ranks(mxll, q_group, myrank)
                                                         mxll%Ex(i_idx, j_idx))
                 q_group%E_field_list(n_mol, 2) = 0.5d0*(mxll%Ey(i_idx, j_idx-1)+ &
                                                         mxll%Ey(i_idx, j_idx))
-            else if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+
+            end if
+
+            if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
                 q_group%E_field_list(n_mol, 3) = mxll%Ez(i_idx, j_idx)
 
             end if
@@ -2283,7 +2276,9 @@ subroutine send_E_2D_to_J_ranks(mxll, q_group, myrank)
                                                         mxll%Ex(i_idx, j_idx))
                 q_group%E_field_list(n_mol, 2) = 0.5d0*(mxll%Ey(i_idx, j_idx-1)+ &
                                                         mxll%Ey(i_idx, j_idx))
-            else if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+            end if
+
+            if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
                 q_group%E_field_list(n_mol, 3) = mxll%Ez(i_idx, j_idx)
             end if
         end do
@@ -2371,9 +2366,9 @@ subroutine send_E_3D_to_J_ranks(mxll, q_group, myrank)
         n_mol = 1
         do n = 1, q_group%n_systems
             
-            i_idx = q_group%kernel_map(n,0,1,1,3)
-            j_idx = q_group%kernel_map(n,0,1,1,4)
-            k_idx = q_group%kernel_map(n,0,1,1,5)
+            i_idx = q_group%kernel_map(n,0,0,0,3)
+            j_idx = q_group%kernel_map(n,0,0,0,4)
+            k_idx = q_group%kernel_map(n,0,0,0,5)
             
                 if(q_group%kernel_map(n,0,0,0,1) == myrank .and. &
                     q_group%kernel_map(n,0,0,0,2) == myrank) then
@@ -2800,7 +2795,8 @@ subroutine send_J_to_E_2D_ranks(mxll, q_group, myrank)
     if (mxll%mode == TEZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
         mxll%dJx = (mxll%Jx - mxll%Jx_old)/q_group%dt
         mxll%dJy = (mxll%Jy - mxll%Jy_old)/q_group%dt
-    else if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
+    end if
+    if (mxll%mode == TMZ_2D_MODE .or. mxll%mode == FULL_2D_MODE) then
         mxll%dJz = (mxll%Jz - mxll%Jz_old)/q_group%dt
     end if
 

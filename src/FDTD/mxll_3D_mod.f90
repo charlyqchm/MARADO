@@ -756,8 +756,8 @@ contains
                                             this%Ex(i,j,k), this%Ex_old(i,j,k), rotH, no_medium)
 
             if (no_medium) then
-                Jav_x = 0.5*(this%Jx_old(i,j,k) + (this%time - this%t_skip)*this%dJx(i,j,k) + &
-                             this%Jx_old(i+1,j,k) + (this%time - this%t_skip)*this%dJx(i+1,j,k))
+                Jav_x = 0.5*(this%Jx(i,j,k) + (this%time - this%t_skip)*this%dJx(i,j,k) + &
+                             this%Jx(i+1,j,k) + (this%time - this%t_skip)*this%dJx(i+1,j,k))
                 this%Ex(i,j, k) = this%Ex(i,j, k) + this%dt_eps0*this%eps_x(i, j, k)*rotH - &
                                 this%dt_eps0 * this%eps_x(i, j, k) * Jav_x
             end if
@@ -779,8 +779,8 @@ contains
                                             this%Ey(i,j,k), this%Ey_old(i,j,k), rotH, no_medium)
 
             if (no_medium) then
-                Jav_y = 0.5*(this%Jy_old(i,j,k) + (this%time - this%t_skip)*this%dJy(i,j,k) + &
-                             this%Jy_old(i,j+1,k) + (this%time - this%t_skip)*this%dJy(i,j+1,k))
+                Jav_y = 0.5*(this%Jy(i,j,k) + (this%time - this%t_skip)*this%dJy(i,j,k) + &
+                             this%Jy(i,j+1,k) + (this%time - this%t_skip)*this%dJy(i,j+1,k))
                 this%Ey(i, j, k) = this%Ey(i, j, k) + this%dt_eps0*this%eps_y(i, j, k)*rotH - &
                                 this%dt_eps0 * this%eps_y(i, j, k) * Jav_y
             end if
@@ -804,8 +804,8 @@ contains
                                             this%Ez(i,j,k), this%Ez_old(i,j,k), rotH, no_medium)
 
             if (no_medium) then
-                Jav_z = 0.5*(this%Jz_old(i,j,k) + (this%time - this%t_skip)*this%dJz(i,j,k) + &
-                             this%Jz_old(i,j,k+1) + (this%time - this%t_skip)*this%dJz(i,j,k+1))
+                Jav_z = 0.5*(this%Jz(i,j,k) + (this%time - this%t_skip)*this%dJz(i,j,k) + &
+                             this%Jz(i,j,k+1) + (this%time - this%t_skip)*this%dJz(i,j,k+1))
                 this%Ez(i, j, k) = this%Ez(i, j, k) + this%dt_eps0 * this%eps_z(i, j, k) * rotH - &
                                 this%dt_eps0 * this%eps_z(i, j, k) * Jav_z
             end if

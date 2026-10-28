@@ -78,7 +78,8 @@ module constants_mod
     Q_SINGLE      = 2
     
     integer, public, parameter :: &
-    Q_SYS_DFTB    = 1
+    Q_SYS_DFTB    = 1,            &
+    Q_SYS_TB      = 2
 
 !Detector Printing options. ------------------------------------
                                                             

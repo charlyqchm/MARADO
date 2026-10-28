@@ -29,7 +29,10 @@ module sources_subs_mod
 
         character(len=2)    :: polarization
         integer             :: dim
-        integer             :: n_ker
+        integer             :: n_ker_max
+        integer             :: n_ker_x_min
+        integer             :: n_ker_y_min
+        integer             :: n_ker_z_min
         real(dp)            :: j_amp
         real(dp)            :: w0
         real(dp)            :: t0
@@ -362,6 +365,7 @@ subroutine init_point_src(this, input_ch, dim, dt, dr, grid_Ndims, mpi_coords, m
         real(dp)           :: radius
         
         integer :: n_ker, i, j
+        integer :: n_ker_x_min, n_ker_y_min, n_ker_z_min
 
         read(input_ch, *) type_src_ch, polarization, j_amp, freq, t0, tau, &
                           r0(1), r0(2), r0(3), radius, t_init, t_final, phase
@@ -380,27 +384,77 @@ subroutine init_point_src(this, input_ch, dim, dt, dr, grid_Ndims, mpi_coords, m
 
         n_ker = int(this%rad/dr)
 
-        this%n_ker = n_ker
+        this%n_ker_max = n_ker
 
         select case (this%dim)
         case (1)
-            if (.not. allocated(this%ind_i))        allocate(this%ind_i(-n_ker:n_ker, 1, 1))
-            if (.not. allocated(this%ker_mat))      allocate(this%ker_mat(-n_ker:n_ker, 1, 1))
-            if (.not. allocated(this%J_mat))        allocate(this%J_mat(-n_ker:n_ker, 1, 1))
-            if (.not. allocated(this%in_this_rank)) allocate(this%in_this_rank(-n_ker:n_ker, 1, 1))
+
+            n_ker_x_min = -n_ker
+            this%n_ker_x_min = n_ker_x_min
+
+            if (.not. allocated(this%ind_i))        allocate(this%ind_i(n_ker_x_min:n_ker, 1, 1))
+            if (.not. allocated(this%ker_mat))      allocate(this%ker_mat(n_ker_x_min:n_ker, 1, 1))
+            if (.not. allocated(this%J_mat))        allocate(this%J_mat(n_ker_x_min:n_ker, 1, 1))
+            if (.not. allocated(this%in_this_rank)) allocate(this%in_this_rank(n_ker_x_min:n_ker, 1, 1))
         case (2)
-            if (.not. allocated(this%ind_i))        allocate(this%ind_i(-n_ker:n_ker, -n_ker:n_ker, 1))
-            if (.not. allocated(this%ind_j))        allocate(this%ind_j(-n_ker:n_ker, -n_ker:n_ker, 1))
-            if (.not. allocated(this%ker_mat))      allocate(this%ker_mat(-n_ker:n_ker, -n_ker:n_ker, 1))
-            if (.not. allocated(this%J_mat))        allocate(this%J_mat(-n_ker:n_ker, -n_ker:n_ker, 1))
-            if (.not. allocated(this%in_this_rank)) allocate(this%in_this_rank(-n_ker:n_ker, -n_ker:n_ker, 1))
+
+            if (this%polarization == "z") then
+                n_ker_x_min = -n_ker
+                n_ker_y_min = -n_ker
+            else if (this%polarization == "y") then
+                n_ker_x_min = -n_ker
+                n_ker_y_min = -n_ker-1
+            else if (this%polarization == "x") then
+                n_ker_x_min = -n_ker-1
+                n_ker_y_min = -n_ker
+            end if
+
+            this%n_ker_x_min = n_ker_x_min
+            this%n_ker_y_min = n_ker_y_min
+            
+            if (.not. allocated(this%ind_i))        allocate(this%ind_i(n_ker_x_min:n_ker, &
+                                                             n_ker_y_min:n_ker, 1))
+            if (.not. allocated(this%ind_j))        allocate(this%ind_j(n_ker_x_min:n_ker, &
+                                                             n_ker_y_min:n_ker, 1))
+            if (.not. allocated(this%ker_mat))      allocate(this%ker_mat(n_ker_x_min:n_ker, &
+                                                             n_ker_y_min:n_ker, 1))
+            if (.not. allocated(this%J_mat))        allocate(this%J_mat(n_ker_x_min:n_ker, &
+                                                             n_ker_y_min:n_ker, 1))
+            if (.not. allocated(this%in_this_rank)) allocate(this%in_this_rank(n_ker_x_min:n_ker, &
+                                                             n_ker_y_min:n_ker, 1))
+            
         case (3)
-            if (.not. allocated(this%ind_i))        allocate(this%ind_i(-n_ker:n_ker, -n_ker:n_ker, -n_ker:n_ker))
-            if (.not. allocated(this%ind_j))        allocate(this%ind_j(-n_ker:n_ker, -n_ker:n_ker, -n_ker:n_ker))
-            if (.not. allocated(this%ind_k))        allocate(this%ind_k(-n_ker:n_ker, -n_ker:n_ker, -n_ker:n_ker))   
-            if (.not. allocated(this%ker_mat))      allocate(this%ker_mat(-n_ker:n_ker, -n_ker:n_ker, -n_ker:n_ker))
-            if (.not. allocated(this%J_mat))        allocate(this%J_mat(-n_ker:n_ker, -n_ker:n_ker, -n_ker:n_ker))
-            if (.not. allocated(this%in_this_rank)) allocate(this%in_this_rank(-n_ker:n_ker, -n_ker:n_ker, -n_ker:n_ker))
+
+            if (this%polarization == "x") then
+                n_ker_x_min = -n_ker-1
+                n_ker_y_min = -n_ker
+                n_ker_z_min = -n_ker
+            else if (this%polarization == "y") then
+                n_ker_x_min = -n_ker
+                n_ker_y_min = -n_ker-1
+                n_ker_z_min = -n_ker
+            else if (this%polarization == "z") then
+                n_ker_x_min = -n_ker
+                n_ker_y_min = -n_ker
+                n_ker_z_min = -n_ker-1
+            end if
+
+            this%n_ker_x_min = n_ker_x_min
+            this%n_ker_y_min = n_ker_y_min
+            this%n_ker_z_min = n_ker_z_min
+
+            if (.not. allocated(this%ind_i))        allocate(this%ind_i(n_ker_x_min:n_ker, &
+                                                             n_ker_y_min:n_ker, n_ker_z_min:n_ker))
+            if (.not. allocated(this%ind_j))        allocate(this%ind_j(n_ker_x_min:n_ker, &
+                                                             n_ker_y_min:n_ker, n_ker_z_min:n_ker))
+            if (.not. allocated(this%ind_k))        allocate(this%ind_k(n_ker_x_min:n_ker, &
+                                                             n_ker_y_min:n_ker, n_ker_z_min:n_ker))   
+            if (.not. allocated(this%ker_mat))      allocate(this%ker_mat(n_ker_x_min:n_ker, &
+                                                             n_ker_y_min:n_ker, n_ker_z_min:n_ker))
+            if (.not. allocated(this%J_mat))        allocate(this%J_mat(n_ker_x_min:n_ker, &
+                                                             n_ker_y_min:n_ker, n_ker_z_min:n_ker))
+            if (.not. allocated(this%in_this_rank)) allocate(this%in_this_rank(n_ker_x_min:n_ker, &
+                                                             n_ker_y_min:n_ker, n_ker_z_min:n_ker))
         end select
 
         call compute_kernel(this, dr)
@@ -1110,20 +1164,22 @@ subroutine compute_kernel(this, dr)
     real(dp)        , intent(in)    :: dr
 
     integer  :: i, j, k
-    integer  :: n_ker
     real(dp) :: x, y, z
+    real(dp) :: dx, dy, dz
     real(dp) :: r_max, r, r0
     real(dp) :: norm
 
-    n_ker = this%n_ker
-
-    r_max = (this%n_ker*2 + 2)*dr
+    r_max = (this%n_ker_max*2 + 2)*dr
     r0    = r_max / 2.0d0
 
     norm = 0.0d0
+    dx   = 0.0d0
+    dy   = 0.0d0
+    dz   = 0.0d0
+
     select case (this%dim)
     case (1)
-        do i = -n_ker, n_ker
+        do i = this%n_ker_x_min, this%n_ker_max
 
             x = i*dr
 
@@ -1132,15 +1188,21 @@ subroutine compute_kernel(this, dr)
                           aBH(3)*DCOS(2.0*pi0*2.0*(x-r0)/r_max)+ &
                           aBH(4)*DCOS(2.0*pi0*3.0*(x-r0)/r_max)
 
+            if (this%ker_mat(i,1,1) < 0.0d0) this%ker_mat(i,1,1) = 0.0d0
+
             norm = norm + this%ker_mat(i,1,1)
         end do
         
     case (2)
-        do j = -n_ker, n_ker
-        do i = -n_ker, n_ker
+
+        if (this%polarization == "x") dx = 0.5d0
+        if (this%polarization == "y") dy = 0.5d0
+
+        do j = this%n_ker_y_min, this%n_ker_max
+        do i = this%n_ker_x_min, this%n_ker_max
                 
-            x = i*dr
-            y = j*dr
+            x = i*dr + dx
+            y = j*dr + dy
             
             r = SQRT(x**2 + y**2)
             
@@ -1155,13 +1217,18 @@ subroutine compute_kernel(this, dr)
         end do
         end do
     case (3)
-        do k = -n_ker, n_ker
-        do j = -n_ker, n_ker
-        do i = -n_ker, n_ker
 
-            x = i*dr
-            y = j*dr
-            z = k*dr
+        if (this%polarization == "x") dx = 0.5d0
+        if (this%polarization == "y") dy = 0.5d0
+        if (this%polarization == "z") dz = 0.5d0
+
+        do k = this%n_ker_z_min, this%n_ker_max
+        do j = this%n_ker_y_min, this%n_ker_max
+        do i = this%n_ker_x_min, this%n_ker_max
+
+            x = i*dr + dx
+            y = j*dr + dy
+            z = k*dr + dz
 
             r = SQRT(x**2 + y**2 + z**2)
 
@@ -1200,20 +1267,20 @@ subroutine determine_indx_and_ranks(this, dr, grid_Ndims, mpi_coords, mpi_dims)
 
     select case (this%dim)
     case (1)
-        do i = -this%n_ker, this%n_ker
+        do i = this%n_ker_x_min, this%n_ker_max
             this%ind_i(i,1,1) = i+int(this%r0(1)/dr) + int(grid_Ndims(1)/2)
         end do
     case (2)
-        do j = -this%n_ker, this%n_ker
-        do i = -this%n_ker, this%n_ker
+        do j = this%n_ker_y_min, this%n_ker_max
+        do i = this%n_ker_x_min, this%n_ker_max
             this%ind_i(i,j,1) = i+int(this%r0(1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
             this%ind_j(i,j,1) = j+int(this%r0(2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
         end do
         end do
     case (3)
-        do k = -this%n_ker, this%n_ker
-        do j = -this%n_ker, this%n_ker
-        do i = -this%n_ker, this%n_ker
+        do k = this%n_ker_z_min, this%n_ker_max
+        do j = this%n_ker_y_min, this%n_ker_max
+        do i = this%n_ker_x_min, this%n_ker_max
             this%ind_i(i,j,k) = i+int(this%r0(1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
             this%ind_j(i,j,k) = j+int(this%r0(2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
             this%ind_k(i,j,k) = k+int(this%r0(3)/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
@@ -1227,8 +1294,8 @@ subroutine determine_indx_and_ranks(this, dr, grid_Ndims, mpi_coords, mpi_dims)
     select case (this%dim)
     case (1)
     case (2)
-        do j = -this%n_ker, this%n_ker
-        do i = -this%n_ker, this%n_ker
+        do j = this%n_ker_y_min, this%n_ker_max
+        do i = this%n_ker_x_min, this%n_ker_max
             rank_x = int((this%ind_i(i,j,1)-1)/grid_Ndims(1))
             rank_y = int((this%ind_j(i,j,1)-1)/grid_Ndims(2))
 
@@ -1243,9 +1310,9 @@ subroutine determine_indx_and_ranks(this, dr, grid_Ndims, mpi_coords, mpi_dims)
         end do
         end do
     case (3)
-        do k = -this%n_ker, this%n_ker
-        do j = -this%n_ker, this%n_ker
-        do i = -this%n_ker, this%n_ker
+        do k = this%n_ker_z_min, this%n_ker_max
+        do j = this%n_ker_y_min, this%n_ker_max
+        do i = this%n_ker_x_min, this%n_ker_max
             rank_x = int((this%ind_i(i,j,k)-1)/grid_Ndims(1))
             rank_y = int((this%ind_j(i,j,k)-1)/grid_Ndims(2))
             rank_z = int((this%ind_k(i,j,k)-1)/grid_Ndims(3))
