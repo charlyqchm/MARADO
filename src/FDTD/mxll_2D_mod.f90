@@ -142,7 +142,9 @@ contains
             this%eps_x   = 1.0d0
             this%eps_y   = 1.0d0
 
-        elseif (this%mode == TMZ_2D_MODE .or. this%mode == FULL_2D_MODE) then
+        end if
+
+        if (this%mode == TMZ_2D_MODE .or. this%mode == FULL_2D_MODE) then
 
             if (.not. allocated(this%Ez))      allocate(this%Ez(nx+1, ny+1))
             if (.not. allocated(this%Ez_old))  allocate(this%Ez_old(nx+1, ny+1))
@@ -161,9 +163,6 @@ contains
             this%Jz_old  = 0.0d0  
             this%dJz     = 0.0d0
             this%eps_z   = 1.0d0
-        else
-            write (*, '("The selected mode for 2D Maxwell does not exist")')
-            stop
         end if
 
         call read_init_media(this%media, n_media, this%eps_x, this%eps_y, this%eps_z, grid_Ndims, dr, &
@@ -688,7 +687,7 @@ contains
 
                 if (no_medium) then
 
-                    Jav_z         = this%Jz_old(i,j) + (this%time - this%t_skip) * this%dJz(i,j)
+                    Jav_z         = this%Jz(i,j) + (this%time - this%t_skip) * this%dJz(i,j)
                     this%Ez(i, j) = this%Ez(i, j) + this%dt_eps0 * this%eps_z(i, j) * rotH - &
                                     this%dt_eps0 * this%eps_z(i, j) * Jav_z
                 end if
@@ -777,8 +776,8 @@ contains
                                             this%Ex(i,j), this%Ex_old(i,j), rotH, no_medium)
 
                 if (no_medium) then
-                    Jav_x        = 0.5*(this%Jx_old(i,j) + (this%time - this%t_skip)*this%dJx(i,j) + &
-                                       this%Jx_old(i+1,j) + (this%time - this%t_skip)*this%dJx(i+1,j))
+                    Jav_x        = 0.5*(this%Jx(i,j) + (this%time - this%t_skip)*this%dJx(i,j) + &
+                                       this%Jx(i+1,j) + (this%time - this%t_skip)*this%dJx(i+1,j))
                     this%Ex(i,j) = this%Ex(i,j) + this%dt_eps0*this%eps_x(i, j)*rotH - &
                                 this%dt_eps0 * this%eps_x(i, j) * Jav_x
                 end if
@@ -797,8 +796,8 @@ contains
                                             this%Ey(i,j), this%Ey_old(i,j), rotH, no_medium)
 
                 if (no_medium) then
-                    Jav_y         = 0.5*(this%Jy_old(i,j) + (this%time - this%t_skip)*this%dJy(i,j) + &
-                                        this%Jy_old(i,j+1) + (this%time - this%t_skip)*this%dJy(i,j+1))
+                    Jav_y         = 0.5*(this%Jy(i,j) + (this%time - this%t_skip)*this%dJy(i,j) + &
+                                        this%Jy(i,j+1) + (this%time - this%t_skip)*this%dJy(i,j+1))
                     this%Ey(i, j) = this%Ey(i, j) + this%dt_eps0 * this%eps_y(i, j) * rotH -&
                                     this%dt_eps0 * this%eps_y(i, j) * Jav_y
                 end if

@@ -17,7 +17,7 @@ module q_group_mod
         integer :: q_sys_type
         integer :: n_systems
         integer :: n_sys_loc
-        integer :: n_ker=3 !this value is harcoded for avoiding memeory issues.
+        integer :: n_ker=2 !this value is harcoded for avoiding memeory issues.
         integer :: Nt_steps
         integer :: print_option
         real(dp):: dt
@@ -174,8 +174,12 @@ contains
                           aBH(3)*DCOS(2.0*pi0*2.0*(x-r0)/r_max)+ &
                           aBH(4)*DCOS(2.0*pi0*3.0*(x-r0)/r_max)
 
+                    if (this%mat_kernel(i,1,1) < M_ZERO) this%mat_kernel(i,1,1) = M_ZERO
+
                     norm = norm + this%mat_kernel(i,1,1)
                 end do
+
+                this%mat_kernel = this%mat_kernel/norm
 
             case (2)
                 if (.not. allocated(this%kernel_map)) then 
@@ -206,6 +210,8 @@ contains
 
                 end do
                 end do
+
+                this%mat_kernel = this%mat_kernel/norm
 
             case (3)
                 if (.not. allocated(this%kernel_map)) then 
@@ -240,6 +246,8 @@ contains
                 end do
                 end do
 
+                this%mat_kernel = this%mat_kernel/norm
+
             case default
                 write(*,*) "Error: Unknown dimensions ", dimensions
                 stop
@@ -252,6 +260,8 @@ contains
         select case(trim(q_sys_type_str))
         case ("dftb")
             this%q_sys_type = Q_SYS_DFTB
+        case("tb")
+            this%q_sys_type = Q_SYS_TB
         case default
             write(*,*) "Error: Unknown Q_sys type ", trim(q_sys_type_str)
             stop
@@ -320,13 +330,7 @@ contains
         integer :: i
 
         do i = 1, this%n_sys_loc
-            select case (this%q_sys_type)
-            case (Q_SYS_DFTB)
-                call this%q_sys(i)%kill()
-            case default
-                write(*,*) "Error: Unknown Q_sys type in kill_q_group."
-                stop
-            end select
+            call this%q_sys(i)%kill()
         end do
         
         if (allocated(this%q_sys))        deallocate(this%q_sys)
@@ -758,13 +762,7 @@ contains
         Nt_steps = this%Nt_steps
 
         if (.not. allocated(this%q_sys)) then
-            select case (this%q_sys_type)
-            case (Q_SYS_DFTB)
-                call q_system_factory(this%q_sys_type, this%n_sys_loc, this%q_sys)
-            case default
-                write(*,*) "Error: Unknown Q_sys type in init_all_q_systems."
-                stop
-            end select
+            call q_system_factory(this%q_sys_type, this%n_sys_loc, this%q_sys)
         end if
 
         n_mol = 0
