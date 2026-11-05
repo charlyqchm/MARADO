@@ -255,7 +255,7 @@ def mol_group_file(file_number=1, number_of_q_systems=None, group_type="material
             "number_of_q_systems -> Number of quantum systems in the group.\n"
             "group_type          -> Type of quantum group: \"material\" for a quantum group with quantum systems placed one next to the other\n"
             "                       or \"single\" for single quantum systems. Default: \"material\".\n"
-            "q_system_type       -> Type of quantum systems: \"dftb\" is the only option for the moment. Default: \"dftb\".\n"
+            "q_system_type       -> Type of quantum systems: \"dftb\" or \"tb\". Default: \"dftb\".\n"
             "print_options       -> Printing options for the quantum system: \"print_none\", \"print_all\", \"print_selected\". Default: \"print_none\".\n"
             "molecule_file_list  -> List of strings with the filenumber of the file molecule_xxxxxxx.in for each quantum system.\n"
             "coordinates         -> Array of 1,2 or 3 elements, with the x, y and z coordinates of every grid point with the quantum systems.\n"
@@ -294,6 +294,10 @@ def mol_group_file(file_number=1, number_of_q_systems=None, group_type="material
 
     mol_group_file = open("mol_group_" + str(file_number).zfill(7) + ".in", "w")
 
+    if q_system_type not in ["dftb", "tb"]:
+        print("Error: q_system_type should be either \"dftb\" or \"tb\".")
+        return
+
     mol_group_file.write("\"" + group_type + "\"   \"" + q_system_type + "\"   " + str(number_of_q_systems) + "   \"" + print_options + "\"\n")
 
     if dim == 1:
@@ -330,11 +334,88 @@ def mol_group_file(file_number=1, number_of_q_systems=None, group_type="material
 
 ########################################################################################################################################################################################################################
 
+def tb_molecule_file(file_number=1, n_basis=None, n_particles=None, basis_type=None, print_occupations=False, 
+                     external_src_file=None, H0=None, mu_x=None, mu_y=None, mu_z=None, 
+                     rho_init=None, help=False):
+
+    if help:
+        print("The following parameters can be set in the 'molecule_xxxxxxx.in' file for the Mxll simulation:")
+        print("")
+        print(
+            "file_number               -> Number of the molecule file, starting from 1. It should be consistent with \n"
+            "                             the file list specified in the 'mol_group_xxxxxxx.in' file.\n"
+            "n_basis                   -> Number of basis functions.\n"
+            "n_particles               -> Number of 1's in the density matrix. If rho_init is provided, this parameter is ignored.\n"
+            "basis_type                -> Type of basis set used, 'atomic' or 'molecular_orbital'.\n"
+            "print_occupations         -> Whether to print the occupations at every time step: True or False. Default: False.\n"
+            "external_src_file         -> Path to the external source file if an external source is applied.\n"
+            "H0(n_basis, n_basis)      -> Initial Hamiltonian matrix.\n"
+            "mu_x, mu_y, mu_z(n_basis, n_basis) -> Dipole moment matrix components.\n"
+            "rho_init(n_basis, n_basis)-> Initial density matrix. If it is not provided, the default initial density matrix will have n_particles 1's on the diagonal and 0's elsewhere.\n"
+        )
+        return
+
+    if n_basis is None or n_particles is None or basis_type is None or H0 is None or mu_x is None or mu_y is None or mu_z is None:
+        print("Error: n_basis, n_particles, basis_type, H0, mu_x, mu_y, and mu_z must all be provided.")
+        return
+
+    molecule_file = open("molecule_" + str(file_number).zfill(7) + ".in", "w")
+
+    molecule_file.write(str(n_basis) + "   " + str(n_particles) + "\n")
+
+    if basis_type == "atomic":
+        basis_type_str = "atomic_basis"
+    elif basis_type == "molecular_orbital":
+        basis_type_str = "molecular_orbital_basis"
+    else:
+        print("Error: Invalid basis_type. Must be 'atomic' or 'molecular_orbital'.")
+        return
+
+    if print_occupations:
+        print_occ_str = "print_occ_on"
+    else:
+        print_occ_str = "print_occ_off"
+
+    if rho_init is not None:
+        rho_in_str = "set_initial_occ_on"
+    else:
+        rho_in_str = "set_initial_occ_off"
+
+    molecule_file.write(basis_type_str + "   " + print_occ_str + "   " + rho_in_str + "\n")
+
+    if external_src_file is not None:
+        external_src_str = "external_src_on"
+    else:
+        external_src_str = "external_src_off"
+
+    molecule_file.write(external_src_str + "\n")
+
+    if external_src_file is not None:
+        molecule_file.write(external_src_file + "\n")
+
+    if rho_init is not None:
+        for j in range(n_basis):
+            for i in range(n_basis):
+                molecule_file.write(str(i)+"  "+str(j)+"   "+str(H0[i,j])+"   "+
+                                    str(mu_x[i,j])+"   "+str(mu_y[i,j])+"   "+
+                                    str(mu_z[i,j])+"   "+str(np.real(rho_init[i,j]))+ "     "+
+                                    str(np.imag(rho_init[i,j])) + "\n")
+    else:
+        for j in range(n_basis):
+            for i in range(n_basis):
+                molecule_file.write(str(i)+"  "+str(j)+"   "+str(H0[i,j])+"   "+
+                                    str(mu_x[i,j])+"   "+str(mu_y[i,j])+"   "+
+                                    str(mu_z[i,j]) + "\n")
+
+    return
+
+########################################################################################################################################################################################################################
+
 def dftb_molecule_file(file_number=1, n_atoms=None, n_atom_types=None,
                               dynamics_type=None, print_coordinates=False, euler_steps=500,
                               atom_types_list=None, max_angular_momentum_list=None, scc_tolerance=1e-6,
                               atoms_list=None, atom_coordinates=None, 
-                              initial_velocities=None, help=False):
+                              initial_velocities=None, external_src_file=None, help=False):
     
     if help:
         print("The following parameters can be set in the 'molecule_xxxxxxx.in' file for the Mxll simulation:")
@@ -352,7 +433,8 @@ def dftb_molecule_file(file_number=1, n_atoms=None, n_atom_types=None,
             "scc_tolerance             -> Tolerance for the self-consistent charge calculation. Default: 1e-6.\n"
             "atoms_list                -> List of atoms in the molecule with dimension (n_atoms).\n"
             "atom_coordinates          -> Array of shape (n_atoms, 3) with the x, y and z coordinates of each atom in Angstroms.\n"
-            "initial_velocities        -> Array of shape (n_atoms, 3) with the initial velocities of each atom in Angstroms per picosecond.\n")
+            "initial_velocities        -> Array of shape (n_atoms, 3) with the initial velocities of each atom in Angstroms per picosecond.\n"
+            "external_src_file         -> Path to the external source file if an external source is applied.\n")
 
         return
     
@@ -397,6 +479,10 @@ def dftb_molecule_file(file_number=1, n_atoms=None, n_atom_types=None,
             molecule_file.write("  \"" + atoms_list[i] + "\"   " + str(atom_coordinates[i][0]) + " " +
                                 str(atom_coordinates[i][1]) + " " + str(atom_coordinates[i][2]) + " " +
                                 str(initial_velocities[i][0]) + " " + str(initial_velocities[i][1]) + " " + str(initial_velocities[i][2]) + "\n")
+
+
+    if external_src_file is not None:
+        molecule_file.write(external_src_file + "\n")
 
     molecule_file.close()
 
