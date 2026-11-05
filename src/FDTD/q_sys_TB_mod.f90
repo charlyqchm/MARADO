@@ -116,7 +116,7 @@ subroutine init_TB(this, id, id_file, dt, t_steps, rank, print_on)
     
     if (external_src_on_str == "external_src_on") then
         this%external_src = .true.
-        read (unit=funit, fmt=*, iostat=ierr) external_src_file
+        read (unit=funit, fmt="(A)", iostat=ierr) external_src_file
 
         if (ierr /= 0) then
             write(*,*) "Error: Could not read external source file name from file ", &
