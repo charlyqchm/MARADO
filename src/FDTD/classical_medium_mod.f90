@@ -263,7 +263,7 @@ contains
 
                         x = x*nm_to_au
 
-                        i_ndx = int(x/dr) + int(grid_Ndims(1)/2)
+                        i_ndx = nint(x/dr) + int(grid_Ndims(1)/2)
 
                         eps_x(i_ndx) = 1.0d0/eps_read ! Store the inverse of eps_r for faster calculations
 
@@ -292,8 +292,8 @@ contains
 
                         x = x*nm_to_au
                         
-                        i_ndx = int(x/dr) + int(grid_Ndims(1)/2)
-                        
+                        i_ndx = nint(x/dr) + int(grid_Ndims(1)/2)
+                       
                         if (media_map(i_ndx)/= 0) then
                             write (*, '("Error: medium ",I4.4," overlaps medium ",I4.4)') &
                             media_map(i_ndx), n
@@ -315,7 +315,7 @@ contains
 
                         x = x*nm_to_au
 
-                        i_ndx = int(x/dr) + int(grid_Ndims(1)/2)
+                        i_ndx = nint(x/dr) + int(grid_Ndims(1)/2)
 
                         if (media_map(i_ndx)/= 0) then
                             write (*, '("Error: medium ",I4.4," overlaps medium ",I4.4)') &
@@ -451,8 +451,8 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
                 x = x*nm_to_au
                 y = y*nm_to_au
 
-                ii = int(x/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-                jj = int(y/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+                ii = nint(x/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+                jj = nint(y/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
 
                 if (media_map_aux(ii,jj,1)/= 0) then
                     write (*, '("Error: medium ",I4.4," overlaps medium ",I4.4)') &
@@ -664,9 +664,9 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
                 y = y*nm_to_au
                 z = z*nm_to_au
 
-                ii = int(x/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-                jj = int(y/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
-                kk = int(z/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
+                ii = nint(x/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+                jj = nint(y/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+                kk = nint(z/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
 
                 if (media_map_aux(ii,jj,kk,1)/= 0) then
                     write (*, '("Error: medium ",I4.4," overlaps medium ",I4.4)') &
