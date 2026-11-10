@@ -379,11 +379,11 @@ contains
             rank_counter = 0
             n = 1 
             do i = 1, this%n_systems
-                global_i  = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                global_i  = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
                 
                 this%map(i,1) = rank_counter
                 this%map(i,2) = 0
-                this%map(i,3) = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                this%map(i,3) = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
                 
                 if (rank_counter < n_left) then
                     if (n >= n_base_loc + 1) then
@@ -406,8 +406,8 @@ contains
             n = 1 
 
             do i = 1, this%n_systems
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-                global_j = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+                global_j = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
 
                 rank_coor(1) = int((global_i-1)/grid_Ndims(1))
                 rank_coor(2) = int((global_j-1)/grid_Ndims(2))
@@ -443,9 +443,9 @@ contains
             rank_counter = 0
             n = 1
             do i = 1, this%n_systems
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-                global_j = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
-                global_k = int(grid_coord(i, 3)/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+                global_j = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+                global_k = nint(grid_coord(i, 3)/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
 
                 rank_coor(1) = int((global_i-1)/grid_Ndims(1))
                 rank_coor(2) = int((global_j-1)/grid_Ndims(2))
@@ -492,7 +492,7 @@ contains
             do i = 1, this%n_systems
                 this%map(i,1) = 0
                 this%map(i,2) = 0
-                this%map(i,3) = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                this%map(i,3) = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
             end do
 
         case (2)
@@ -500,8 +500,8 @@ contains
             do i = 1, this%n_systems
                 this%map(i,1) = 0
                 this%map(i,2) = 0
-                this%map(i,3) = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
-                this%map(i,4) = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
+                this%map(i,3) = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                this%map(i,4) = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
             end do
 
         case (3)
@@ -509,9 +509,9 @@ contains
             do i = 1, this%n_systems
                 this%map(i,1) = 0
                 this%map(i,2) = 0
-                this%map(i,3) = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
-                this%map(i,4) = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
-                this%map(i,5) = int(grid_coord(i, 3)/dr) + int(grid_Ndims(3)/2)
+                this%map(i,3) = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                this%map(i,4) = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
+                this%map(i,5) = nint(grid_coord(i, 3)/dr) + int(grid_Ndims(3)/2)
             end do
 
         case default
@@ -558,7 +558,7 @@ contains
             rank_counter = 0
             n = 1 
             do i = 1, this%n_systems
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
 
                 do ii = -this%n_ker, this%n_ker
                     this%kernel_map(i,ii,0,0,1) = rank_counter
@@ -588,8 +588,8 @@ contains
             n = 1 
 
             do i = 1, this%n_systems
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-                global_j = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+                global_j = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
 
 
                 do jj = -this%n_ker, this%n_ker
@@ -631,9 +631,9 @@ contains
             rank_counter = 0
             n = 1
             do i = 1, this%n_systems
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-                global_j = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
-                global_k = int(grid_coord(i, 3)/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+                global_j = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+                global_k = nint(grid_coord(i, 3)/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
 
                 do kk = -this%n_ker, this%n_ker
                 do jj = -this%n_ker, this%n_ker
@@ -687,7 +687,7 @@ contains
 
             do i = 1, this%n_systems
                 
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
                 
                 do ii = -this%n_ker, this%n_ker
                     this%kernel_map(i,ii,0,0,1) = 0
@@ -700,8 +700,8 @@ contains
 
             do i = 1, this%n_systems
 
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
-                global_j = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                global_j = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
 
                 do jj = -this%n_ker, this%n_ker
                 do ii = -this%n_ker, this%n_ker
@@ -717,9 +717,9 @@ contains
 
             do i = 1, this%n_systems
 
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
-                global_j = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
-                global_k = int(grid_coord(i, 3)/dr) + int(grid_Ndims(3)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                global_j = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
+                global_k = nint(grid_coord(i, 3)/dr) + int(grid_Ndims(3)/2)
 
                 do kk = -this%n_ker, this%n_ker
                 do jj = -this%n_ker, this%n_ker
