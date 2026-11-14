@@ -11,6 +11,7 @@ module q_sys_TB_mod
         integer   :: n_particles
         logical   :: basis_mo
         logical   :: print_occ
+        logical   :: initial_occ
 
         complex(dp), allocatable :: rho_at(:,:)
         complex(dp), allocatable :: rho_mo(:,:)
@@ -55,7 +56,6 @@ subroutine init_TB(this, id, id_file, dt, t_steps, rank, print_on)
     logical         , intent(in)    :: print_on
 
 
-    logical            :: set_initial_occ = .false.
     character(len=20)  :: file_name = "molecule_"
     character(len=20)  :: file_exten = ".in"
     character(len=20)  :: file_number
@@ -98,7 +98,7 @@ subroutine init_TB(this, id, id_file, dt, t_steps, rank, print_on)
     this%n_particles = n_particles
     
     this%print_occ  = .false.
-    set_initial_occ = .false.
+    this%initial_occ = .false.
     
     
     if (ierr /= 0) then
@@ -145,9 +145,9 @@ subroutine init_TB(this, id, id_file, dt, t_steps, rank, print_on)
 
     select case (trim(set_initial_occ_str))
     case ('set_initial_occ_on')
-        set_initial_occ = .true.
+        this%initial_occ = .true.
     case ('set_initial_occ_off')
-        set_initial_occ = .false.
+        this%initial_occ = .false.
     case default
         write(*,*) "Error: Unknown initial occupancy flag ", trim(set_initial_occ_str)
         stop
@@ -216,7 +216,7 @@ subroutine init_TB(this, id, id_file, dt, t_steps, rank, print_on)
 
     do
 
-        if (set_initial_occ) then
+        if (this%initial_occ) then
             read (unit=funit, fmt=*, iostat=ierr) i, j, H_ij, mux_ij, muy_ij, muz_ij, Re_rho_ij, Im_rho_ij
             if (ierr /= 0) exit
         else
@@ -240,13 +240,13 @@ subroutine init_TB(this, id, id_file, dt, t_steps, rank, print_on)
 
         end if
 
-        if (set_initial_occ) this%rho_mo(i,j) = Re_rho_ij + Z_I*Im_rho_ij
+        if (this%initial_occ) this%rho_mo(i,j) = Re_rho_ij + Z_I*Im_rho_ij
 
     end do
 
     close(unit=funit)
 
-    if (.not. set_initial_occ) then
+    if (.not. this%initial_occ) then
 
         do i = 1, this%n_particles
             this%rho_mo(i,i) = Z_ONE
@@ -440,7 +440,14 @@ subroutine td_propagate_TB(this, tq_step, E_field_in)
     
     commut_rhoH = -2.0d0*Z_I*(MATMUL(this%H_tot, this%rho) - MATMUL(this%rho, this%H_tot))
     
-    this%rho_new = this%rho_old + commut_rhoH * this%dt
+    if (this%initial_occ .and. tq_step == 1) then
+
+        !Euler step
+        this%rho_new = this%rho + 0.5d0*commut_rhoH * this%dt
+
+    else
+        this%rho_new = this%rho_old + commut_rhoH * this%dt
+    end if
     
     this%dipole = M_ZERO
     
