@@ -396,14 +396,14 @@ def tb_molecule_file(file_number=1, n_basis=None, n_particles=None, basis_type=N
     if rho_init is not None:
         for j in range(n_basis):
             for i in range(n_basis):
-                molecule_file.write(str(i)+"  "+str(j)+"   "+str(H0[i,j])+"   "+
+                molecule_file.write(str(i+1)+"  "+str(j+1)+"   "+str(H0[i,j])+"   "+
                                     str(mu_x[i,j])+"   "+str(mu_y[i,j])+"   "+
                                     str(mu_z[i,j])+"   "+str(np.real(rho_init[i,j]))+ "     "+
                                     str(np.imag(rho_init[i,j])) + "\n")
     else:
         for j in range(n_basis):
             for i in range(n_basis):
-                molecule_file.write(str(i)+"  "+str(j)+"   "+str(H0[i,j])+"   "+
+                molecule_file.write(str(i+1)+"  "+str(j+1)+"   "+str(H0[i,j])+"   "+
                                     str(mu_x[i,j])+"   "+str(mu_y[i,j])+"   "+
                                     str(mu_z[i,j]) + "\n")
 
