@@ -224,7 +224,20 @@ subroutine write_2D_headers(detectors, n_detectors, print_det_step, time, &
     character(len=99) :: full_dirname
     integer           :: ierr, funit
 
-    if (myrank /= 0) return
+#ifdef USE_MPI
+    integer :: nprocs_mpi
+
+    real(dp)        , allocatable :: data_row(:)        ! row to append to line detector file, can either be a x, y, z detector data it is just a buffer.
+    real(dp)        , allocatable :: data_row_loc(:)    ! local data for each rank
+    integer         , allocatable :: ranks_counts(:)    ! number of data points per rank
+    integer         , allocatable :: ranks_displs(:)    ! displacements for the data points per rank
+    integer                       :: data_row_size      ! total size of the data_row array, which is the sum of ranks_counts
+#endif
+
+#ifdef USE_MPI
+    nprocs_mpi = mpi_dims(1)*mpi_dims(2)*mpi_dims(3)
+    allocate(ranks_counts(nprocs_mpi), ranks_displs(nprocs_mpi))
+#endif
 
     nx = grid_Ndims(1)
     ny = grid_Ndims(2)
@@ -242,54 +255,144 @@ subroutine write_2D_headers(detectors, n_detectors, print_det_step, time, &
         case (LINE_X_DETECTOR)
             if (print_det_step == 0) then
                 full_dirname = trim(directory) // "_" // trim(number) // "/" // trim(field_name) // "_line_x.dat"
-        
+
+#ifdef USE_MPI
+                call MPI_Gather(detectors(i)%nd, 1, MPI_INTEGER, ranks_counts, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+                data_row_size = 0
+                if (myrank == 0) then
+                    ranks_displs(1) = 0
+                    do n = 2, nprocs_mpi
+                        ranks_displs(n) = ranks_displs(n-1) + ranks_counts(n-1)
+                    end do
+                    data_row_size = sum(ranks_counts)
+                endif
+                if (allocated(data_row)) deallocate(data_row)
+                allocate(data_row(data_row_size))
+                if (allocated(data_row_loc)) deallocate(data_row_loc)
+                allocate(data_row_loc(detectors(i)%nd))
+#endif
+
+#ifdef USE_MPI
+                if (myrank == 0) then
+#endif
+
+                y = detectors(i)%j_min*dr - int(mpi_dims(2)*grid_Ndims(2)/2)*dr
                 open(newunit=funit, file=trim(full_dirname), status='replace', &
                     action='write', iostat=ierr)
 
-                y = detectors(i)%j_min*dr - int(mpi_dims(2)*grid_Ndims(2)/2)*dr
-
-                write(funit, '("# Direction = ", A, "   Shift-Y = ", F0.3, " (nm)")') "x", y*au_to_nm
+                write(funit, '("# Direction = ", A, "   Shift-Y = ", F10.3, " (nm)")') "x", y*au_to_nm
                 write(funit, '(A)', advance='no') '# '
+
+#ifdef USE_MPI
+                endif
+#endif
 
                 do n = 1, detectors(i)%nd
                     i_ndx = detectors(i)%indx_list(n,1)
                     j_ndx = detectors(i)%indx_list(n,2)
                     x    = (i_ndx+nx*mpi_coords(1))*dr - int(nx_tot/2)*dr
                     x    = x*au_to_nm
-                    write(funit, '(F0.3,3X)', advance='no') x
+#ifdef USE_MPI
+                    data_row_loc(n) = x
+#else
+                    write(funit, '(F10.3,3X)', advance='no') x
+#endif
                 end do
+
+#ifdef USE_MPI
+                call MPI_Gatherv(data_row_loc, detectors(i)%nd, MPI_DOUBLE_PRECISION, &
+                    data_row, ranks_counts, ranks_displs, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
+                if (myrank == 0) then
+                    do n = 1, data_row_size
+                        write(funit, '(F10.3,3X)', advance='no') data_row(n)
+                    end do
+#endif
 
                 write(funit, *)
                 write(funit, '("# Time (a.u.)   ", A)') trim(field_name)
+
                 close(funit)
+
+#ifdef USE_MPI
+                endif
+#endif
+
             endif
+
         case (LINE_Y_DETECTOR)
-                if (print_det_step == 0) then
+            if (print_det_step == 0) then
                 full_dirname = trim(directory) // "_" // trim(number) // "/" // trim(field_name) // "_line_y.dat"
-        
-                open(newunit=funit, file=trim(full_dirname), status='replace', &
-                    action='write', iostat=ierr)
+
+#ifdef USE_MPI
+                call MPI_Gather(detectors(i)%nd, 1, MPI_INTEGER, ranks_counts, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+                data_row_size = 0
+                if (myrank == 0) then
+                    ranks_displs(1) = 0
+                    do n = 2, nprocs_mpi
+                        ranks_displs(n) = ranks_displs(n-1) + ranks_counts(n-1)
+                    end do
+                    data_row_size = sum(ranks_counts)
+                endif
+                if (allocated(data_row)) deallocate(data_row)
+                allocate(data_row(data_row_size))
+                if (allocated(data_row_loc)) deallocate(data_row_loc)
+                allocate(data_row_loc(detectors(i)%nd))
+#endif
+
+#ifdef USE_MPI
+                if (myrank == 0) then
+#endif
 
                 x = detectors(i)%i_min*dr - int(mpi_dims(1)*grid_Ndims(1)/2)*dr
 
-                write(funit, '("# Direction = ", A,"   Shift-X = ", F0.3, " (nm)")') "y", x*au_to_nm
+                open(newunit=funit, file=trim(full_dirname), status='replace', &
+                    action='write', iostat=ierr)
+
+                write(funit, '("# Direction = ", A,"   Shift-X = ", F10.3, " (nm)")') "y", x*au_to_nm
                 write(funit, '(A)', advance='no') '# '
+
+#ifdef USE_MPI
+                endif
+#endif
 
                 do n = 1, detectors(i)%nd
                     i_ndx = detectors(i)%indx_list(n,1)
                     j_ndx = detectors(i)%indx_list(n,2)
                     y    = (j_ndx+ny*mpi_coords(2))*dr - int(ny_tot/2)*dr
                     y    = y*au_to_nm
-                    write(funit, '(F0.3,3X)', advance='no') y
+#ifdef USE_MPI
+                    data_row_loc(n) = y
+#else
+                    write(funit, '(F10.3,3X)', advance='no') y
+#endif
                 end do
+
+#ifdef USE_MPI
+                call MPI_Gatherv(data_row_loc, detectors(i)%nd, MPI_DOUBLE_PRECISION, &
+                    data_row, ranks_counts, ranks_displs, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
+                if (myrank == 0) then
+                    do n = 1, data_row_size
+                        write(funit, '(F10.3,3X)', advance='no') data_row(n)
+                    end do
+#endif
 
                 write(funit, *)
                 write(funit, '("# Time (a.u.)   ", A)') trim(field_name)
+
                 close(funit)
+
+#ifdef USE_MPI
+                endif
+#endif
+
             endif
         
         case (PLANE_XY_DETECTOR)
             
+#ifdef USE_MPI
+            if (myrank == 0) then
+#endif
+
             full_dirname = trim(directory) // "_" // trim(number) // &
                                 "/" // trim(field_name) // "_plane_xy_" // trim(print_number) // ".dat"
            
@@ -300,6 +403,9 @@ subroutine write_2D_headers(detectors, n_detectors, print_det_step, time, &
                            // trim(field_name) // ' (a.u.)")')
         
             close(funit)
+#ifdef USE_MPI
+            endif
+#endif
         end select
     end do
 
@@ -337,7 +443,18 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
 
 
 #ifdef USE_MPI
-    integer :: rank_iter, nprocs_mpi
+    integer :: nprocs_mpi
+
+    real(dp)            , allocatable :: data_row(:)        ! row to append to line detector file, can either be a x, y, z detector data it is just a buffer.
+    real(dp)            , allocatable :: data_row_loc(:)    ! local data row for each rank
+    integer             , allocatable :: ranks_counts(:)    ! number of data points per rank
+    integer             , allocatable :: ranks_displs(:)    ! displacements for the data points per rank
+    integer                           :: data_row_size      ! total size of the row_data array, which is the sum of ranks_counts
+
+    ! plane detector buffers
+    integer             , allocatable :: ig_loc(:), jg_loc(:), ig_all(:), jg_all(:) ! Local and global indices for plane detector
+    real(dp)            , allocatable :: plane_buf(:, :)                            ! Buffer for plane detector data in rank 0
+    integer                           :: ig_min, ig_max, jg_min, jg_max, ii, jj     ! Indices and loop variables for plane detector
 #endif
 
     nx = grid_Ndims(1)
@@ -347,15 +464,11 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
     ny_tot = grid_Ndims(2)*mpi_dims(2)
 
 #ifdef USE_MPI
-
     nprocs_mpi = mpi_dims(1)*mpi_dims(2)*mpi_dims(3)
-    do rank_iter = 0, nprocs_mpi-1
-        if (myrank == rank_iter) then
+    allocate(ranks_counts(nprocs_mpi), ranks_displs(nprocs_mpi))
 #endif
 
     do i = 1, n_detectors
-        
-        if (detectors(i)%detect_rank) then  !---- Here it checks if the rank has a detector
 
         write(number, '(I7.7)') i
         write(print_number, '(I9.9)') print_det_step
@@ -365,54 +478,84 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
 
         case (POINT_DETECTOR)
 
-            full_dirname = trim(directory) // "_" // trim(number) // "/point.dat"
-            
-            open(newunit=funit, file=trim(full_dirname), status='old', &
-            action='write', position='append', iostat=ierr)
-            
-            i_ndx = detectors(i)%indx_list(1,1)
-            j_ndx = detectors(i)%indx_list(1,2)
+            if (detectors(i)%detect_rank) then
 
-            select case (detectors(i)%field)
-            
-            case (Ex_FIELD)
+                full_dirname = trim(directory) // "_" // trim(number) // "/point.dat"
                 
-                write(funit, *) time, 0.5*(mxll%Ex(i_ndx-1,j_ndx)+mxll%Ex(i_ndx,j_ndx))
-
-            case (Ey_FIELD)
-
-                write(funit, *) time, 0.5*(mxll%Ey(i_ndx,j_ndx-1)+mxll%Ey(i_ndx,j_ndx))
-
-            case (Ez_FIELD)
+                open(newunit=funit, file=trim(full_dirname), status='old', &
+                action='write', position='append', iostat=ierr)
                 
-                write(funit, *) time, mxll%Ez(i_ndx,j_ndx)
+                i_ndx = detectors(i)%indx_list(1,1)
+                j_ndx = detectors(i)%indx_list(1,2)
 
-            case (Hx_FIELD)
+                select case (detectors(i)%field)
                 
-                write(funit, *) time, 0.5*(mxll%Hx(i_ndx,j_ndx) + mxll%Hx(i_ndx,j_ndx-1))
-            
-            case (Hy_FIELD)
+                case (Ex_FIELD)
+                    
+                    write(funit, *) time, 0.5*(mxll%Ex(i_ndx-1,j_ndx)+mxll%Ex(i_ndx,j_ndx))
 
-                write(funit, *) time, 0.5*(mxll%Hy(i_ndx,j_ndx) + mxll%Hy(i_ndx-1,j_ndx))
-            
-            case (Hz_FIELD)
+                case (Ey_FIELD)
 
-                write(funit, *) time, 0.25*(mxll%Hz(i_ndx,j_ndx) + mxll%Hz(i_ndx-1,j_ndx-1) +&
-                                            mxll%Hz(i_ndx-1,j_ndx) + mxll%Hz(i_ndx,j_ndx-1))
-            
-            end select
+                    write(funit, *) time, 0.5*(mxll%Ey(i_ndx,j_ndx-1)+mxll%Ey(i_ndx,j_ndx))
 
-            close(funit)
+                case (Ez_FIELD)
+                    
+                    write(funit, *) time, mxll%Ez(i_ndx,j_ndx)
+
+                case (Hx_FIELD)
+                    
+                    write(funit, *) time, 0.5*(mxll%Hx(i_ndx,j_ndx) + mxll%Hx(i_ndx,j_ndx-1))
+                
+                case (Hy_FIELD)
+
+                    write(funit, *) time, 0.5*(mxll%Hy(i_ndx,j_ndx) + mxll%Hy(i_ndx-1,j_ndx))
+                
+                case (Hz_FIELD)
+
+                    write(funit, *) time, 0.25*(mxll%Hz(i_ndx,j_ndx) + mxll%Hz(i_ndx-1,j_ndx-1) +&
+                                                mxll%Hz(i_ndx-1,j_ndx) + mxll%Hz(i_ndx,j_ndx-1))
+                
+                end select
+
+                close(funit)
+            endif
 
         case (LINE_X_DETECTOR)
 
             field_name = detectors(i)%f_ch
             full_dirname = trim(directory) // "_" // trim(number) // "/" // trim(field_name) // "_line_x.dat"
+            
+#ifdef USE_MPI
+            call MPI_Gather(detectors(i)%nd, 1, MPI_INTEGER, ranks_counts, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr) ! Get the number of data points per rank
+            data_row_size = 0
+            if (myrank == 0) then
+                ranks_displs(1) = 0
+                do n = 2, nprocs_mpi
+                    ranks_displs(n) = ranks_displs(n-1) + ranks_counts(n-1)
+                end do
+                data_row_size = sum(ranks_counts) ! Total number of data points across all ranks
+            endif
 
+            if (allocated(data_row)) deallocate(data_row)
+            allocate(data_row(data_row_size))
+
+            if (allocated(data_row_loc)) deallocate(data_row_loc)
+            allocate(data_row_loc(detectors(i)%nd))
+#endif
+
+#ifdef USE_MPI
+            if (myrank == 0) then
+#endif
             open(newunit=funit, file=trim(full_dirname), status='old', &
                     action='write', position='append', iostat=ierr)
 
+            
             write(funit, '(ES0.16,3X)', advance='no') time
+
+#ifdef USE_MPI
+            endif
+#endif
+
             select case (detectors(i)%field)
 
             case (Ex_FIELD)
@@ -420,7 +563,11 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                 do n = 1, detectors(i)%nd
                     i_ndx = detectors(i)%indx_list(n,1)
                     j_ndx = detectors(i)%indx_list(n,2)
+#ifdef USE_MPI
+                    data_row_loc(n) = 0.5*(mxll%Ex(i_ndx-1,j_ndx)+mxll%Ex(i_ndx,j_ndx))
+#else
                     write(funit, '(ES0.16,3X)', advance='no') 0.5*(mxll%Ex(i_ndx-1,j_ndx)+mxll%Ex(i_ndx,j_ndx))
+#endif
                 end do
 
             case (Ey_FIELD)
@@ -428,7 +575,11 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                 do n = 1, detectors(i)%nd
                     i_ndx = detectors(i)%indx_list(n,1)
                     j_ndx = detectors(i)%indx_list(n,2)
+#ifdef USE_MPI
+                    data_row_loc(n) = 0.5*(mxll%Ey(i_ndx,j_ndx-1)+mxll%Ey(i_ndx,j_ndx))
+#else
                     write(funit, '(ES0.16,3X)', advance='no') 0.5*(mxll%Ey(i_ndx,j_ndx-1)+mxll%Ey(i_ndx,j_ndx))
+#endif
                 end do
 
             case (Ez_FIELD)
@@ -436,7 +587,11 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                 do n = 1, detectors(i)%nd
                     i_ndx = detectors(i)%indx_list(n,1)
                     j_ndx = detectors(i)%indx_list(n,2)
+#ifdef USE_MPI
+                    data_row_loc(n) = mxll%Ez(i_ndx,j_ndx)
+#else
                     write(funit, '(ES0.16,3X)', advance='no') mxll%Ez(i_ndx,j_ndx)
+#endif
                 end do
     
             case (Hx_FIELD)
@@ -444,7 +599,11 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                 do n = 1, detectors(i)%nd
                     i_ndx = detectors(i)%indx_list(n,1)
                     j_ndx = detectors(i)%indx_list(n,2)
+#ifdef USE_MPI
+                    data_row_loc(n) = 0.5*(mxll%Hx(i_ndx,j_ndx) + mxll%Hx(i_ndx,j_ndx-1))
+#else
                     write(funit, '(ES0.16,3X)', advance='no') 0.5*(mxll%Hx(i_ndx,j_ndx) + mxll%Hx(i_ndx,j_ndx-1))
+#endif
                 end do
 
             case (Hy_FIELD)
@@ -452,7 +611,11 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                 do n = 1, detectors(i)%nd
                     i_ndx = detectors(i)%indx_list(n,1)
                     j_ndx = detectors(i)%indx_list(n,2)
+#ifdef USE_MPI
+                    data_row_loc(n) = 0.5*(mxll%Hy(i_ndx,j_ndx) + mxll%Hy(i_ndx-1,j_ndx))
+#else
                     write(funit, '(ES0.16,3X)', advance='no') 0.5*(mxll%Hy(i_ndx,j_ndx) + mxll%Hy(i_ndx-1,j_ndx))
+#endif
                 end do
 
             case (Hz_FIELD)
@@ -460,24 +623,69 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                 do n = 1, detectors(i)%nd
                     i_ndx = detectors(i)%indx_list(n,1)
                     j_ndx = detectors(i)%indx_list(n,2)
+#ifdef USE_MPI
+                    data_row_loc(n) = 0.25*(mxll%Hz(i_ndx,j_ndx) + mxll%Hz(i_ndx-1,j_ndx-1) +&
+                                                mxll%Hz(i_ndx-1,j_ndx) + mxll%Hz(i_ndx,j_ndx-1))
+#else
                     write(funit, '(ES0.16,3X)', advance='no') 0.25*(mxll%Hz(i_ndx,j_ndx) + mxll%Hz(i_ndx-1,j_ndx-1) +&
                                                 mxll%Hz(i_ndx-1,j_ndx) + mxll%Hz(i_ndx,j_ndx-1))
+#endif
                 end do
     
             end select
 
+
+#ifdef USE_MPI
+            call MPI_Gatherv(data_row_loc, detectors(i)%nd, MPI_DOUBLE_PRECISION, &
+                    data_row, ranks_counts, ranks_displs, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr) ! Gather the local data from all ranks to rank 0
+
+            if (myrank == 0) then
+                do n = 1, data_row_size
+                    write(funit, '(ES0.16,3X)', advance='no') data_row(n)
+                end do
+#endif
+
             write(funit, *)
             close(funit)
+
+#ifdef USE_MPI
+            endif
+#endif 
 
         case (LINE_Y_DETECTOR)
 
                 field_name = detectors(i)%f_ch
                 full_dirname = trim(directory) // "_" // trim(number) // "/" // trim(field_name) // "_line_y.dat"
 
+#ifdef USE_MPI
+                call MPI_Gather(detectors(i)%nd, 1, MPI_INTEGER, ranks_counts, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr) ! Get the number of data points per rank
+                data_row_size = 0
+                if (myrank == 0) then
+                    ranks_displs(1) = 0
+                    do n = 2, nprocs_mpi
+                        ranks_displs(n) = ranks_displs(n-1) + ranks_counts(n-1)
+                    end do
+                    data_row_size = sum(ranks_counts) ! Total number of data points across all ranks
+                endif
+
+                if (allocated(data_row)) deallocate(data_row)
+                allocate(data_row(data_row_size))
+
+                if (allocated(data_row_loc)) deallocate(data_row_loc)
+                allocate(data_row_loc(detectors(i)%nd))
+#endif
+
+#ifdef USE_MPI
+            if (myrank == 0) then
+#endif
                 open(newunit=funit, file=trim(full_dirname), status='old', &
                         action='write', position='append', iostat=ierr)
 
                 write(funit, '(ES0.16,3X)', advance='no') time
+
+#ifdef USE_MPI
+            endif
+#endif
 
                 select case (detectors(i)%field)
 
@@ -486,7 +694,11 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                     do n = 1, detectors(i)%nd
                         i_ndx = detectors(i)%indx_list(n,1)
                         j_ndx = detectors(i)%indx_list(n,2)
+#ifdef USE_MPI
+                        data_row_loc(n) = 0.5*(mxll%Ex(i_ndx-1,j_ndx)+mxll%Ex(i_ndx,j_ndx))
+#else
                         write(funit, '(ES0.16,3X)', advance='no') 0.5*(mxll%Ex(i_ndx-1,j_ndx)+mxll%Ex(i_ndx,j_ndx))
+#endif
                     end do
 
                 case (Ey_FIELD)
@@ -494,7 +706,11 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                     do n = 1, detectors(i)%nd
                         i_ndx = detectors(i)%indx_list(n,1)
                         j_ndx = detectors(i)%indx_list(n,2)
+#ifdef USE_MPI
+                        data_row_loc(n) = 0.5*(mxll%Ey(i_ndx,j_ndx-1)+mxll%Ey(i_ndx,j_ndx))
+#else
                         write(funit, '(ES0.16,3X)', advance='no') 0.5*(mxll%Ey(i_ndx,j_ndx-1)+mxll%Ey(i_ndx,j_ndx))
+#endif
                     end do
 
                 case (Ez_FIELD)
@@ -502,7 +718,11 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                     do n = 1, detectors(i)%nd
                         i_ndx = detectors(i)%indx_list(n,1)
                         j_ndx = detectors(i)%indx_list(n,2)
+#ifdef USE_MPI
+                        data_row_loc(n) = mxll%Ez(i_ndx,j_ndx)
+#else
                         write(funit, '(ES0.16,3X)', advance='no') mxll%Ez(i_ndx,j_ndx)
+#endif
                     end do
 
                 case (Hx_FIELD)
@@ -510,7 +730,11 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                     do n = 1, detectors(i)%nd
                         i_ndx = detectors(i)%indx_list(n,1)
                         j_ndx = detectors(i)%indx_list(n,2)
+#ifdef USE_MPI
+                        data_row_loc(n) = 0.5*(mxll%Hx(i_ndx,j_ndx) + mxll%Hx(i_ndx,j_ndx-1))
+#else
                         write(funit, '(ES0.16,3X)', advance='no') 0.5*(mxll%Hx(i_ndx,j_ndx) + mxll%Hx(i_ndx,j_ndx-1))
+#endif
                     end do
 
                 case (Hy_FIELD)
@@ -518,7 +742,11 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                     do n = 1, detectors(i)%nd
                         i_ndx = detectors(i)%indx_list(n,1)
                         j_ndx = detectors(i)%indx_list(n,2)
+#ifdef USE_MPI
+                        data_row_loc(n) = 0.5*(mxll%Hy(i_ndx,j_ndx) + mxll%Hy(i_ndx-1,j_ndx))
+#else
                         write(funit, '(ES0.16,3X)', advance='no') 0.5*(mxll%Hy(i_ndx,j_ndx) + mxll%Hy(i_ndx-1,j_ndx))
+#endif
                     end do
 
                 case (Hz_FIELD)
@@ -526,14 +754,33 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                     do n = 1, detectors(i)%nd
                         i_ndx = detectors(i)%indx_list(n,1)
                         j_ndx = detectors(i)%indx_list(n,2)
+#ifdef USE_MPI
+                        data_row_loc(n) = 0.25*(mxll%Hz(i_ndx,j_ndx) + mxll%Hz(i_ndx-1,j_ndx-1) +&
+                                                mxll%Hz(i_ndx-1,j_ndx) + mxll%Hz(i_ndx,j_ndx-1))
+#else
                         write(funit, '(ES0.16,3X)', advance='no') 0.25*(mxll%Hz(i_ndx,j_ndx) + mxll%Hz(i_ndx-1,j_ndx-1) +&
                                                 mxll%Hz(i_ndx-1,j_ndx) + mxll%Hz(i_ndx,j_ndx-1))
+#endif
                     end do
 
                 end select
 
+#ifdef USE_MPI
+            call MPI_Gatherv(data_row_loc, detectors(i)%nd, MPI_DOUBLE_PRECISION, &
+                    data_row, ranks_counts, ranks_displs, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr) ! Gather the local data from all ranks to rank 0
+
+            if (myrank == 0) then
+                do n = 1, data_row_size
+                    write(funit, '(ES0.16,3X)', advance='no') data_row(n)
+                end do
+#endif
+                
                 write(funit, *)
+
                 close(funit)
+#ifdef USE_MPI
+            endif
+#endif
 
         case (PLANE_XY_DETECTOR)
 
@@ -542,8 +789,40 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
             full_dirname = trim(directory) // "_" // trim(number) // &
                             "/" // trim(field_name) // "_plane_xy_" // trim(print_number) // ".dat"
 
+#ifdef USE_MPI
+            ! Each rank computes its local values and then passes it to the root rank (rank 0) to write to the file
+            if (allocated(data_row_loc)) deallocate(data_row_loc)
+            if (allocated(ig_loc)) deallocate(ig_loc)
+            if (allocated(jg_loc)) deallocate(jg_loc)
+            allocate(data_row_loc(detectors(i)%nd), ig_loc(detectors(i)%nd), jg_loc(detectors(i)%nd))
+            
+            call MPI_Gather(detectors(i)%nd, 1, MPI_INTEGER, ranks_counts, 1, MPI_INTEGER, &
+                0, MPI_COMM_WORLD, ierr)
+            data_row_size = 0
+            if (myrank == 0) then
+                ranks_displs(1) = 0
+                do n = 2, nprocs_mpi
+                    ranks_displs(n) = ranks_displs(n-1) + ranks_counts(n-1)
+                end do
+                data_row_size = sum(ranks_counts)
+            endif
+            
+            if (allocated(data_row)) deallocate(data_row)
+            if (allocated(ig_all))   deallocate(ig_all)
+            if (allocated(jg_all))   deallocate(jg_all)
+            allocate(data_row(data_row_size), ig_all(data_row_size), jg_all(data_row_size))
+#endif
+
+#ifdef USE_MPI
+            if (myrank == 0) then
+#endif
+
             open(newunit=funit, file=trim(full_dirname), status='old', &
                         action='write', position='append', iostat=ierr)
+
+#ifdef USE_MPI
+            endif
+#endif
 
             select case (detectors(i)%field)
             case (Ex_FIELD)
@@ -555,7 +834,14 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                     y    = (j_ndx+ny*mpi_coords(2))*dr - int(ny_tot/2)*dr
                     x    = x*au_to_nm
                     y    = y*au_to_nm
+
+#ifdef USE_MPI
+                    ig_loc(n) = i_ndx + nx*mpi_coords(1)
+                    jg_loc(n) = j_ndx + ny*mpi_coords(2)
+                    data_row_loc(n) = 0.5*(mxll%Ex(i_ndx-1,j_ndx)+mxll%Ex(i_ndx,j_ndx))
+#else
                     write(funit, *) x , y, 0.5*(mxll%Ex(i_ndx-1,j_ndx)+mxll%Ex(i_ndx,j_ndx))
+#endif
                 end do
 
             case (Ey_FIELD)
@@ -567,11 +853,17 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                     y    = (j_ndx+ny*mpi_coords(2))*dr - int(ny_tot/2)*dr
                     x    = x*au_to_nm
                     y    = y*au_to_nm
+
+#ifdef USE_MPI
+                    ig_loc(n) = i_ndx + nx*mpi_coords(1)
+                    jg_loc(n) = j_ndx + ny*mpi_coords(2)
+                    data_row_loc(n) = 0.5*(mxll%Ey(i_ndx,j_ndx-1)+mxll%Ey(i_ndx,j_ndx))
+#else
                     write(funit, *) x , y, 0.5*(mxll%Ey(i_ndx,j_ndx-1)+mxll%Ey(i_ndx,j_ndx))
+#endif
                 end do
 
             case (Ez_FIELD)
-
                 do n = 1, detectors(i)%nd
                     i_ndx = detectors(i)%indx_list(n,1)
                     j_ndx = detectors(i)%indx_list(n,2)
@@ -580,7 +872,13 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                     y    = (j_ndx+ny*mpi_coords(2))*dr - int(ny_tot/2)*dr
                     x    = x*au_to_nm
                     y    = y*au_to_nm
+#ifdef USE_MPI
+                    ig_loc(n) = i_ndx + nx*mpi_coords(1)
+                    jg_loc(n) = j_ndx + ny*mpi_coords(2)
+                    data_row_loc(n) = mxll%Ez(i_ndx,j_ndx)
+#else
                     write(funit, *) x , y, mxll%Ez(i_ndx,j_ndx)
+#endif
                 end do
 
             case (Hx_FIELD)
@@ -592,10 +890,14 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                     y    = (j_ndx+ny*mpi_coords(2))*dr - int(ny_tot/2)*dr
                     x    = x*au_to_nm
                     y    = y*au_to_nm
+#ifdef USE_MPI
+                    ig_loc(n) = i_ndx + nx*mpi_coords(1)
+                    jg_loc(n) = j_ndx + ny*mpi_coords(2)
+                    data_row_loc(n) = 0.5*(mxll%Hx(i_ndx,j_ndx) + mxll%Hx(i_ndx,j_ndx-1))
+#else
                     write(funit, *) x , y, 0.5*(mxll%Hx(i_ndx,j_ndx) + mxll%Hx(i_ndx,j_ndx-1))
+#endif
                 end do
-
-                close(funit)
 
             case (Hy_FIELD)
 
@@ -606,7 +908,13 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                     y    = (j_ndx+ny*mpi_coords(2))*dr - int(ny_tot/2)*dr
                     x    = x*au_to_nm
                     y    = y*au_to_nm
+#ifdef USE_MPI
+                    ig_loc(n) = i_ndx + nx*mpi_coords(1)
+                    jg_loc(n) = j_ndx + ny*mpi_coords(2)
+                    data_row_loc(n) = 0.5*(mxll%Hy(i_ndx,j_ndx) + mxll%Hy(i_ndx-1,j_ndx))
+#else
                     write(funit, *) x , y, 0.5*(mxll%Hy(i_ndx,j_ndx) + mxll%Hy(i_ndx-1,j_ndx))
+#endif
                 end do
 
             case (Hz_FIELD)
@@ -618,25 +926,65 @@ subroutine write_2D_field(detectors, mxll, n_detectors, print_det_step, time, &
                     y    = (j_ndx+ny*mpi_coords(2))*dr - int(ny_tot/2)*dr
                     x    = x*au_to_nm
                     y    = y*au_to_nm
+#ifdef USE_MPI
+                    ig_loc(n) = i_ndx + nx*mpi_coords(1)
+                    jg_loc(n) = j_ndx + ny*mpi_coords(2)
+                    data_row_loc(n) = 0.25*(mxll%Hz(i_ndx,j_ndx) + mxll%Hz(i_ndx-1,j_ndx-1) +&
+                                                mxll%Hz(i_ndx-1,j_ndx) + mxll%Hz(i_ndx,j_ndx-1))
+#else
                     write(funit, *) x , y, 0.25*(mxll%Hz(i_ndx,j_ndx) + mxll%Hz(i_ndx-1,j_ndx-1) +&
                                                 mxll%Hz(i_ndx-1,j_ndx) + mxll%Hz(i_ndx,j_ndx-1))
+#endif
                 end do
                 
             end select
 
-            close(funit)
+#ifdef USE_MPI
+            call MPI_Gatherv(data_row_loc, detectors(i)%nd, MPI_DOUBLE_PRECISION, &
+                             data_row, ranks_counts, ranks_displs, MPI_DOUBLE_PRECISION, &
+                             0, MPI_COMM_WORLD, ierr)
+            call MPI_Gatherv(ig_loc, detectors(i)%nd, MPI_INTEGER, &
+                             ig_all, ranks_counts, ranks_displs, MPI_INTEGER, &
+                             0, MPI_COMM_WORLD, ierr)
+            call MPI_Gatherv(jg_loc, detectors(i)%nd, MPI_INTEGER, &
+                             jg_all, ranks_counts, ranks_displs, MPI_INTEGER, &
+                             0, MPI_COMM_WORLD, ierr)
 
-        end select
+            if (myrank == 0 .and. data_row_size > 0) then
 
-        end if !-------- Here it finishes the check if the rank has a detector
+                ig_min = minval(ig_all); ig_max = maxval(ig_all)
+                jg_min = minval(jg_all); jg_max = maxval(jg_all)
 
-    end do
+                if (allocated(plane_buf)) deallocate(plane_buf)
+                allocate(plane_buf(ig_min:ig_max, jg_min:jg_max))
+                plane_buf = 0.0_dp
+
+                do n = 1, data_row_size
+                    plane_buf(ig_all(n), jg_all(n)) = data_row(n)
+                end do
+
+                do jj = jg_min, jg_max
+                    y = (jj*dr - int(ny_tot/2)*dr)*au_to_nm
+                    do ii = ig_min, ig_max
+                        x = (ii*dr - int(nx_tot/2)*dr)*au_to_nm
+                        write(funit, *) x, y, plane_buf(ii, jj)
+                    end do
+                end do
+            endif
+#endif
 
 #ifdef USE_MPI
-        end if
-        call mpi_barrier(MPI_COMM_WORLD, ierr)
-    end do
+            if (myrank == 0) then
 #endif
+            close(funit)
+            
+#ifdef USE_MPI
+            endif
+#endif
+
+        end select ! ---- detectors type
+
+    end do ! ---- detectors loop
 
 end subroutine write_2D_field
 !###################################################################################################
