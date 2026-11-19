@@ -17,7 +17,7 @@ module q_group_mod
         integer :: q_sys_type
         integer :: n_systems
         integer :: n_sys_loc
-        integer :: n_ker=3 !this value is harcoded for avoiding memeory issues.
+        integer :: n_ker=2 !this value is harcoded for avoiding memeory issues.
         integer :: Nt_steps
         integer :: print_option
         real(dp):: dt
@@ -174,8 +174,12 @@ contains
                           aBH(3)*DCOS(2.0*pi0*2.0*(x-r0)/r_max)+ &
                           aBH(4)*DCOS(2.0*pi0*3.0*(x-r0)/r_max)
 
+                    if (this%mat_kernel(i,1,1) < M_ZERO) this%mat_kernel(i,1,1) = M_ZERO
+
                     norm = norm + this%mat_kernel(i,1,1)
                 end do
+
+                this%mat_kernel = this%mat_kernel/norm
 
             case (2)
                 if (.not. allocated(this%kernel_map)) then 
@@ -206,6 +210,8 @@ contains
 
                 end do
                 end do
+
+                this%mat_kernel = this%mat_kernel/norm
 
             case (3)
                 if (.not. allocated(this%kernel_map)) then 
@@ -240,6 +246,8 @@ contains
                 end do
                 end do
 
+                this%mat_kernel = this%mat_kernel/norm
+
             case default
                 write(*,*) "Error: Unknown dimensions ", dimensions
                 stop
@@ -252,6 +260,8 @@ contains
         select case(trim(q_sys_type_str))
         case ("dftb")
             this%q_sys_type = Q_SYS_DFTB
+        case("tb")
+            this%q_sys_type = Q_SYS_TB
         case default
             write(*,*) "Error: Unknown Q_sys type ", trim(q_sys_type_str)
             stop
@@ -320,13 +330,7 @@ contains
         integer :: i
 
         do i = 1, this%n_sys_loc
-            select case (this%q_sys_type)
-            case (Q_SYS_DFTB)
-                call this%q_sys(i)%kill()
-            case default
-                write(*,*) "Error: Unknown Q_sys type in kill_q_group."
-                stop
-            end select
+            call this%q_sys(i)%kill()
         end do
         
         if (allocated(this%q_sys))        deallocate(this%q_sys)
@@ -375,11 +379,11 @@ contains
             rank_counter = 0
             n = 1 
             do i = 1, this%n_systems
-                global_i  = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                global_i  = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
                 
                 this%map(i,1) = rank_counter
                 this%map(i,2) = 0
-                this%map(i,3) = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                this%map(i,3) = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
                 
                 if (rank_counter < n_left) then
                     if (n >= n_base_loc + 1) then
@@ -402,8 +406,8 @@ contains
             n = 1 
 
             do i = 1, this%n_systems
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-                global_j = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+                global_j = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
 
                 rank_coor(1) = int((global_i-1)/grid_Ndims(1))
                 rank_coor(2) = int((global_j-1)/grid_Ndims(2))
@@ -439,9 +443,9 @@ contains
             rank_counter = 0
             n = 1
             do i = 1, this%n_systems
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-                global_j = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
-                global_k = int(grid_coord(i, 3)/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+                global_j = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+                global_k = nint(grid_coord(i, 3)/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
 
                 rank_coor(1) = int((global_i-1)/grid_Ndims(1))
                 rank_coor(2) = int((global_j-1)/grid_Ndims(2))
@@ -488,7 +492,7 @@ contains
             do i = 1, this%n_systems
                 this%map(i,1) = 0
                 this%map(i,2) = 0
-                this%map(i,3) = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                this%map(i,3) = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
             end do
 
         case (2)
@@ -496,8 +500,8 @@ contains
             do i = 1, this%n_systems
                 this%map(i,1) = 0
                 this%map(i,2) = 0
-                this%map(i,3) = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
-                this%map(i,4) = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
+                this%map(i,3) = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                this%map(i,4) = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
             end do
 
         case (3)
@@ -505,9 +509,9 @@ contains
             do i = 1, this%n_systems
                 this%map(i,1) = 0
                 this%map(i,2) = 0
-                this%map(i,3) = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
-                this%map(i,4) = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
-                this%map(i,5) = int(grid_coord(i, 3)/dr) + int(grid_Ndims(3)/2)
+                this%map(i,3) = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                this%map(i,4) = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
+                this%map(i,5) = nint(grid_coord(i, 3)/dr) + int(grid_Ndims(3)/2)
             end do
 
         case default
@@ -554,7 +558,7 @@ contains
             rank_counter = 0
             n = 1 
             do i = 1, this%n_systems
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
 
                 do ii = -this%n_ker, this%n_ker
                     this%kernel_map(i,ii,0,0,1) = rank_counter
@@ -584,8 +588,8 @@ contains
             n = 1 
 
             do i = 1, this%n_systems
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-                global_j = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+                global_j = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
 
 
                 do jj = -this%n_ker, this%n_ker
@@ -627,9 +631,9 @@ contains
             rank_counter = 0
             n = 1
             do i = 1, this%n_systems
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-                global_j = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
-                global_k = int(grid_coord(i, 3)/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+                global_j = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+                global_k = nint(grid_coord(i, 3)/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
 
                 do kk = -this%n_ker, this%n_ker
                 do jj = -this%n_ker, this%n_ker
@@ -683,7 +687,7 @@ contains
 
             do i = 1, this%n_systems
                 
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
                 
                 do ii = -this%n_ker, this%n_ker
                     this%kernel_map(i,ii,0,0,1) = 0
@@ -696,8 +700,8 @@ contains
 
             do i = 1, this%n_systems
 
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
-                global_j = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                global_j = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
 
                 do jj = -this%n_ker, this%n_ker
                 do ii = -this%n_ker, this%n_ker
@@ -713,9 +717,9 @@ contains
 
             do i = 1, this%n_systems
 
-                global_i = int(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
-                global_j = int(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
-                global_k = int(grid_coord(i, 3)/dr) + int(grid_Ndims(3)/2)
+                global_i = nint(grid_coord(i, 1)/dr) + int(grid_Ndims(1)/2)
+                global_j = nint(grid_coord(i, 2)/dr) + int(grid_Ndims(2)/2)
+                global_k = nint(grid_coord(i, 3)/dr) + int(grid_Ndims(3)/2)
 
                 do kk = -this%n_ker, this%n_ker
                 do jj = -this%n_ker, this%n_ker
@@ -758,13 +762,7 @@ contains
         Nt_steps = this%Nt_steps
 
         if (.not. allocated(this%q_sys)) then
-            select case (this%q_sys_type)
-            case (Q_SYS_DFTB)
-                call q_system_factory(this%q_sys_type, this%n_sys_loc, this%q_sys)
-            case default
-                write(*,*) "Error: Unknown Q_sys type in init_all_q_systems."
-                stop
-            end select
+            call q_system_factory(this%q_sys_type, this%n_sys_loc, this%q_sys)
         end if
 
         n_mol = 0
@@ -774,9 +772,6 @@ contains
                     n_mol = n_mol + 1
                     call this%q_sys(n_mol)%init(mol_id(i), id_file(i), dt, Nt_steps, myrank, print_on(i))
 
-                    write(*,'("Q system", I6," of group", I6, ", in rank", I4, " initialized")') &
-                        mol_id(i), this%group_id, myrank
-
                 end if
             end do
         else if (this%group_type == Q_SINGLE) then
@@ -784,8 +779,6 @@ contains
                 if (myrank == this%kernel_map(i,0,0,0,1)) then
                     n_mol = n_mol + 1
                     call this%q_sys(n_mol)%init(mol_id(i), id_file(i), dt, Nt_steps, myrank, print_on(i))
-                    write(*,'("Q system", I6," of group", I6, ", in rank", I4, " initialized")') &
-                        mol_id(i), this%group_id, myrank
                 end if
             end do
         else
@@ -800,8 +793,23 @@ contains
 
     !Calculate initial ground state
     !TO-DO: this should be somewhere else.
-        do i = 1, this%n_sys_loc
-            call this%q_sys(i)%gs_calculate()
+        n_mol = 0
+        do i = 1, this%n_systems
+            if (this%group_type == Q_MATERIAL) then
+                if (myrank == this%map(i,1)) then
+                    n_mol = n_mol + 1
+                    call this%q_sys(n_mol)%gs_calculate()
+                    write(*,'("Q system", I6," of group", I6, ", in rank", I4, " initialized")') &
+                        mol_id(i), this%group_id, myrank
+                end if
+            else if (this%group_type == Q_SINGLE) then
+                if (myrank == this%kernel_map(i,0,0,0,1)) then
+                    n_mol = n_mol + 1
+                    call this%q_sys(n_mol)%gs_calculate()
+                    write(*,'("Q system", I6," of group", I6, ", in rank", I4, " initialized")') &
+                        mol_id(i), this%group_id, myrank
+                end if
+            end if
         end do
 
     end subroutine init_all_q_systems

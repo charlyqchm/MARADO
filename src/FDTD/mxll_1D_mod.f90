@@ -348,7 +348,7 @@ contains
                                             this%Ex(i), this%Ex_old(i), rotH, no_medium)
             if (no_medium) then
 
-                Jx = this%Jx_old(i) + (this%time - this%t_skip) * this%dJx(i)
+                Jx = this%Jx(i) + (this%time - this%t_skip) * this%dJx(i)
 
                 this%Ex(i) = this%Ex(i) + this%dt_eps0*this%eps_x(i)*rotH - &
                              this%dt_eps0*this%eps_x(i)*Jx

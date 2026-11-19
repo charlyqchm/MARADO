@@ -208,8 +208,8 @@ contains
         integer , intent(in)  :: nz
         integer , intent(in)  :: grid_Ndims(3)
         real(dp), intent(in)  :: dr
-        real(dp), intent(out) :: eps_x(nz)
         real(dp), intent(in)  :: dt
+        real(dp), allocatable, intent(inout) :: eps_x(:)
         character(len=20) :: file_name = "medium_"
         character(len=20) :: file_exten = ".in"
         character(len=20) :: file_number
@@ -263,7 +263,7 @@ contains
 
                         x = x*nm_to_au
 
-                        i_ndx = int(x/dr) + int(grid_Ndims(1)/2)
+                        i_ndx = nint(x/dr) + int(grid_Ndims(1)/2)
 
                         eps_x(i_ndx) = 1.0d0/eps_read ! Store the inverse of eps_r for faster calculations
 
@@ -292,8 +292,8 @@ contains
 
                         x = x*nm_to_au
                         
-                        i_ndx = int(x/dr) + int(grid_Ndims(1)/2)
-                        
+                        i_ndx = nint(x/dr) + int(grid_Ndims(1)/2)
+                       
                         if (media_map(i_ndx)/= 0) then
                             write (*, '("Error: medium ",I4.4," overlaps medium ",I4.4)') &
                             media_map(i_ndx), n
@@ -315,7 +315,7 @@ contains
 
                         x = x*nm_to_au
 
-                        i_ndx = int(x/dr) + int(grid_Ndims(1)/2)
+                        i_ndx = nint(x/dr) + int(grid_Ndims(1)/2)
 
                         if (media_map(i_ndx)/= 0) then
                             write (*, '("Error: medium ",I4.4," overlaps medium ",I4.4)') &
@@ -451,8 +451,8 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
                 x = x*nm_to_au
                 y = y*nm_to_au
 
-                ii = int(x/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-                jj = int(y/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+                ii = nint(x/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+                jj = nint(y/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
 
                 if (media_map_aux(ii,jj,1)/= 0) then
                     write (*, '("Error: medium ",I4.4," overlaps medium ",I4.4)') &
@@ -496,7 +496,7 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
                 
                 else if (j == ny_tot .and. media_map_aux(i,j,1) == n) then
                 
-                    media_map(i_ndx,j_ndx,1) = n
+                    media_map(i_ndx,j_ndx,2) = n
                 
                 else
 
@@ -552,18 +552,18 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
 
         type(TClassicalMedium), allocatable, intent(inout) :: media(:)
         integer               , allocatable, intent(inout) :: media_map(:, :, :, :)
-        integer , intent(in)  :: n_media
-        integer , intent(in)  :: nx
-        integer , intent(in)  :: ny
-        integer , intent(in)  :: nz
-        integer , intent(in)  :: mpi_coords(3) !must be equal to 0, when mpi is not used.
-        integer , intent(in)  :: mpi_dims(3)   !must be equal to 1, when mpi is not used.
-        integer , intent(in)  :: grid_Ndims(3)
-        real(dp), intent(in)  :: dr
-        real(dp), intent(in)  :: dt
-        real(dp), intent(out) :: eps_x(nx, ny, nz)
-        real(dp), intent(out) :: eps_y(nx, ny, nz)
-        real(dp), intent(out) :: eps_z(nx, ny, nz)
+        integer , intent(in)    :: n_media
+        integer , intent(in)    :: nx
+        integer , intent(in)    :: ny
+        integer , intent(in)    :: nz
+        integer , intent(in)    :: mpi_coords(3) !must be equal to 0, when mpi is not used.
+        integer , intent(in)    :: mpi_dims(3)   !must be equal to 1, when mpi is not used.
+        integer , intent(in)    :: grid_Ndims(3)
+        real(dp), intent(in)    :: dr
+        real(dp), intent(in)    :: dt
+        real(dp), allocatable, intent(inout) :: eps_x(:,:,:)
+        real(dp), allocatable, intent(inout) :: eps_y(:,:,:)
+        real(dp), allocatable, intent(inout) :: eps_z(:,:,:)
         
         character(len=20) :: file_name = "medium_"
         character(len=20) :: file_exten = ".in"
@@ -629,7 +629,7 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
 
                     read (unit=funit, fmt=*) eps_read
 
-                    call media(n)%init_classical_medium(medium_type_ch=medium_type_ch)
+                    call media(n)%init_classical_medium(medium_type_ch=medium_type_ch, eps_r=eps_read)
 
                 case ("drude")
                     read (unit=funit, fmt=*) omegaD, GammaD, eps_read
@@ -664,9 +664,9 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
                 y = y*nm_to_au
                 z = z*nm_to_au
 
-                ii = int(x/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
-                jj = int(y/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
-                kk = int(z/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
+                ii = nint(x/dr) + int(grid_Ndims(1)*mpi_dims(1)/2)
+                jj = nint(y/dr) + int(grid_Ndims(2)*mpi_dims(2)/2)
+                kk = nint(z/dr) + int(grid_Ndims(3)*mpi_dims(3)/2)
 
                 if (media_map_aux(ii,jj,kk,1)/= 0) then
                     write (*, '("Error: medium ",I4.4," overlaps medium ",I4.4)') &
@@ -711,13 +711,13 @@ subroutine read_init_media_2D(media, n_media, eps_x, eps_y, eps_z, grid_Ndims, d
                 
                     media_map(i_ndx,j_ndx,k_ndx,1) = n
                 
-                else if (j == ny_tot .and. media_map_aux(i,j,k,1) == n) then
+                else if (j == ny_tot .and. media_map_aux(i,j,k,2) == n) then
                 
-                    media_map(i_ndx,j_ndx,k_ndx,1) = n
+                    media_map(i_ndx,j_ndx,k_ndx,2) = n
                 
-                else if (k == nz_tot .and. media_map_aux(i,j,k,1) == n) then
+                else if (k == nz_tot .and. media_map_aux(i,j,k,3) == n) then
                 
-                    media_map(i_ndx,j_ndx,k_ndx,1) = n
+                    media_map(i_ndx,j_ndx,k_ndx,3) = n
                 
                 else
 

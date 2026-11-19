@@ -91,7 +91,7 @@ program mxim_mxll
     end do
 
     call init_q_groups_outputs(q_groups, n_q_groups, dt_q_print, t_q_print, dt, myrank)
-    
+
     do tt = 1, Nt
         time = dt*(DBLE(tt)-0.5d0)
         
@@ -100,7 +100,7 @@ program mxim_mxll
         mxll%tq_step = 1 + int((tt-tt_0)/mxll%n_skip_steps)
         move_q_system = .false.
         if (mxll%tq_step > mxll%tq_step_old) then
-            mxll%t_skip       = time
+            ! mxll%t_skip       = time
             mxll%tq_step_old  = mxll%tq_step
             move_q_system     = .true.
             if (n_q_groups == 0) move_q_system = .false.
@@ -133,6 +133,9 @@ program mxim_mxll
             call q_groups(i)%td_propagate_q_group(mxll%tq_step, move_q_system)
             call send_J_to_E_ranks(mxll, q_groups(i), move_q_system, myrank)
         end do 
+
+        if (move_q_system) mxll%t_skip = time + 0.5d0*dble(mxll%n_skip_steps + 1)*dt
+
         call expand_J_field_between_ranks(mxll, move_q_system)
 
         call extend_fields_to_detectors(mxll, detectors, n_detectors, tt, t_det_print)

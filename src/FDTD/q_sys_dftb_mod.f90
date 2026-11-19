@@ -485,8 +485,6 @@ subroutine td_propagate_dftb(this, tq_step, E_field_in)
     real(dp), allocatable :: aux_at_charges(:,:)
     real(dp), allocatable :: dip_aux(:,:)
 
-    E_field = E_field_in
-
 
     if(.not. allocated(aux_at_charges)) allocate(aux_at_charges(this%n_atoms, 1))
     if(.not. allocated(dip_aux)) allocate(dip_aux(3, 1))
@@ -506,6 +504,8 @@ subroutine td_propagate_dftb(this, tq_step, E_field_in)
     if (this%dyn_type == DFTB_BO_DYN) then
         this%Kinetic_Energy = M_ZERO
 
+        if (E_amp /= M_ZERO) E_field = E_field / E_amp
+        
         call this%dftbp%setGeometry(this%coor)
         call this%dftbp%setExternalEfield(E_amp, E_field)
         call this%dftbp%getGradients(this%forces) !The force has the opposite sign of the gradient.
@@ -537,7 +537,7 @@ subroutine td_propagate_dftb(this, tq_step, E_field_in)
 
         end do
 
-            this%Et = this%Kinetic_Energy
+        this%Et = this%Kinetic_Energy
 
         this%coor_old = this%coor
         this%coor     = this%coor_new

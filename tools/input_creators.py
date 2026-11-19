@@ -255,7 +255,7 @@ def mol_group_file(file_number=1, number_of_q_systems=None, group_type="material
             "number_of_q_systems -> Number of quantum systems in the group.\n"
             "group_type          -> Type of quantum group: \"material\" for a quantum group with quantum systems placed one next to the other\n"
             "                       or \"single\" for single quantum systems. Default: \"material\".\n"
-            "q_system_type       -> Type of quantum systems: \"dftb\" is the only option for the moment. Default: \"dftb\".\n"
+            "q_system_type       -> Type of quantum systems: \"dftb\" or \"tb\". Default: \"dftb\".\n"
             "print_options       -> Printing options for the quantum system: \"print_none\", \"print_all\", \"print_selected\". Default: \"print_none\".\n"
             "molecule_file_list  -> List of strings with the filenumber of the file molecule_xxxxxxx.in for each quantum system.\n"
             "coordinates         -> Array of 1,2 or 3 elements, with the x, y and z coordinates of every grid point with the quantum systems.\n"
@@ -294,6 +294,10 @@ def mol_group_file(file_number=1, number_of_q_systems=None, group_type="material
 
     mol_group_file = open("mol_group_" + str(file_number).zfill(7) + ".in", "w")
 
+    if q_system_type not in ["dftb", "tb"]:
+        print("Error: q_system_type should be either \"dftb\" or \"tb\".")
+        return
+
     mol_group_file.write("\"" + group_type + "\"   \"" + q_system_type + "\"   " + str(number_of_q_systems) + "   \"" + print_options + "\"\n")
 
     if dim == 1:
@@ -330,11 +334,88 @@ def mol_group_file(file_number=1, number_of_q_systems=None, group_type="material
 
 ########################################################################################################################################################################################################################
 
+def tb_molecule_file(file_number=1, n_basis=None, n_particles=None, basis_type=None, print_occupations=False, 
+                     external_src_file=None, H0=None, mu_x=None, mu_y=None, mu_z=None, 
+                     rho_init=None, help=False):
+
+    if help:
+        print("The following parameters can be set in the 'molecule_xxxxxxx.in' file for the Mxll simulation:")
+        print("")
+        print(
+            "file_number               -> Number of the molecule file, starting from 1. It should be consistent with \n"
+            "                             the file list specified in the 'mol_group_xxxxxxx.in' file.\n"
+            "n_basis                   -> Number of basis functions.\n"
+            "n_particles               -> Number of 1's in the density matrix. If rho_init is provided, this parameter is ignored.\n"
+            "basis_type                -> Type of basis set used, 'atomic' or 'molecular_orbital'.\n"
+            "print_occupations         -> Whether to print the occupations at every time step: True or False. Default: False.\n"
+            "external_src_file         -> Path to the external source file if an external source is applied.\n"
+            "H0(n_basis, n_basis)      -> Initial Hamiltonian matrix.\n"
+            "mu_x, mu_y, mu_z(n_basis, n_basis) -> Dipole moment matrix components.\n"
+            "rho_init(n_basis, n_basis)-> Initial density matrix. If it is not provided, the default initial density matrix will have n_particles 1's on the diagonal and 0's elsewhere.\n"
+        )
+        return
+
+    if n_basis is None or n_particles is None or basis_type is None or H0 is None or mu_x is None or mu_y is None or mu_z is None:
+        print("Error: n_basis, n_particles, basis_type, H0, mu_x, mu_y, and mu_z must all be provided.")
+        return
+
+    molecule_file = open("molecule_" + str(file_number).zfill(7) + ".in", "w")
+
+    molecule_file.write(str(n_basis) + "   " + str(n_particles) + "\n")
+
+    if basis_type == "atomic":
+        basis_type_str = "atomic_basis"
+    elif basis_type == "molecular_orbital":
+        basis_type_str = "molecular_orbital_basis"
+    else:
+        print("Error: Invalid basis_type. Must be 'atomic' or 'molecular_orbital'.")
+        return
+
+    if print_occupations:
+        print_occ_str = "print_occ_on"
+    else:
+        print_occ_str = "print_occ_off"
+
+    if rho_init is not None:
+        rho_in_str = "set_initial_occ_on"
+    else:
+        rho_in_str = "set_initial_occ_off"
+
+    molecule_file.write(basis_type_str + "   " + print_occ_str + "   " + rho_in_str + "\n")
+
+    if external_src_file is not None:
+        external_src_str = "external_src_on"
+    else:
+        external_src_str = "external_src_off"
+
+    molecule_file.write(external_src_str + "\n")
+
+    if external_src_file is not None:
+        molecule_file.write(external_src_file + "\n")
+
+    if rho_init is not None:
+        for j in range(n_basis):
+            for i in range(n_basis):
+                molecule_file.write(str(i+1)+"  "+str(j+1)+"   "+str(H0[i,j])+"   "+
+                                    str(mu_x[i,j])+"   "+str(mu_y[i,j])+"   "+
+                                    str(mu_z[i,j])+"   "+str(np.real(rho_init[i,j]))+ "     "+
+                                    str(np.imag(rho_init[i,j])) + "\n")
+    else:
+        for j in range(n_basis):
+            for i in range(n_basis):
+                molecule_file.write(str(i+1)+"  "+str(j+1)+"   "+str(H0[i,j])+"   "+
+                                    str(mu_x[i,j])+"   "+str(mu_y[i,j])+"   "+
+                                    str(mu_z[i,j]) + "\n")
+
+    return
+
+########################################################################################################################################################################################################################
+
 def dftb_molecule_file(file_number=1, n_atoms=None, n_atom_types=None,
                               dynamics_type=None, print_coordinates=False, euler_steps=500,
                               atom_types_list=None, max_angular_momentum_list=None, scc_tolerance=1e-6,
                               atoms_list=None, atom_coordinates=None, 
-                              initial_velocities=None, help=False):
+                              initial_velocities=None, external_src_file=None, help=False):
     
     if help:
         print("The following parameters can be set in the 'molecule_xxxxxxx.in' file for the Mxll simulation:")
@@ -352,7 +433,8 @@ def dftb_molecule_file(file_number=1, n_atoms=None, n_atom_types=None,
             "scc_tolerance             -> Tolerance for the self-consistent charge calculation. Default: 1e-6.\n"
             "atoms_list                -> List of atoms in the molecule with dimension (n_atoms).\n"
             "atom_coordinates          -> Array of shape (n_atoms, 3) with the x, y and z coordinates of each atom in Angstroms.\n"
-            "initial_velocities        -> Array of shape (n_atoms, 3) with the initial velocities of each atom in Angstroms per picosecond.\n")
+            "initial_velocities        -> Array of shape (n_atoms, 3) with the initial velocities of each atom in Angstroms per picosecond.\n"
+            "external_src_file         -> Path to the external source file if an external source is applied.\n")
 
         return
     
@@ -398,6 +480,10 @@ def dftb_molecule_file(file_number=1, n_atoms=None, n_atom_types=None,
                                 str(atom_coordinates[i][1]) + " " + str(atom_coordinates[i][2]) + " " +
                                 str(initial_velocities[i][0]) + " " + str(initial_velocities[i][1]) + " " + str(initial_velocities[i][2]) + "\n")
 
+
+    if external_src_file is not None:
+        molecule_file.write(external_src_file + "\n")
+
     molecule_file.close()
 
     return
@@ -406,7 +492,7 @@ def dftb_molecule_file(file_number=1, n_atoms=None, n_atom_types=None,
 
 def sources_file(source_type=None, polarization=None, field_amp=None, frequency=None, t0=None, tau=None, t_init=None, t_end=None, phase=None,
                 r0=None, radius=None, phi=None, theta=None, psi=None, x_min=None, x_max=None, y_min=None, y_max=None, z_min=None, z_max=None,
-                w0=None, d_src=None, lenght=None, height=None,
+                w0=None, d_src=None, length=None, height=None,
                 file_exists=False, help=False):
     
     if help:
@@ -443,21 +529,21 @@ def sources_file(source_type=None, polarization=None, field_amp=None, frequency=
             "       - y_min, y_max -> Minimum and maximum y coordinates of the region limited for the plane wave source in nm. \n"
             "       - z_min, z_max -> Minimum and maximum z coordinates of the region limited for the plane wave source in nm. \n"
 
-            "   Variables for gaussian beam source \n"
+            "   Variables for gaussbeam source \n"
             "       - field_amp    -> Field amplitude in atomic units.\n"
-            "       - phi          -> Angle between the x-axis and the projection of the wavevector of the \"gaussian_beam\" source on the xy-plane in degrees. \n"
-            "       - theta        -> Angle between the z-axis and the wavevector of the \"gaussian_beam\" source in degrees. \n"
-            "       - psi          -> Rotation angle of the electric field around the wavevector of the \"gaussian_beam\" source in degrees. \n"
-            "                         For psi=0, the electric field is parallel to \"k x z\", where k is the wavevector of the gaussian beam. \n"
+            "       - phi          -> Angle between the x-axis and the projection of the wavevector of the \"gaussbeam\" source on the xy-plane in degrees. \n"
+            "       - theta        -> Angle between the z-axis and the wavevector of the \"gaussbeam\" source in degrees. \n"
+            "       - psi          -> Rotation angle of the electric field around the wavevector of the \"gaussbeam\" source in degrees. \n"
+            "                         For psi=0, the electric field is parallel to \"k x z\", where k is the wavevector of the gaussbeam. \n"
             "       - frequency    -> Source frequency in eV.\n"
             "       - t0           -> Time origin of the source in fs.\n"
             "       - tau          -> Full width at half maximum (FWHM) of the pulse in fs.\n"
             "       - phase        -> Phase of the source in degrees.\n"
-            "       - w0           -> Beam waist of the gaussian beam in nm.\n"
-            "       - r0(3)        -> Array of coordinates of the focus of the gaussian beam in nm.\n"
-            "       - d_src        -> Distance from the position of the source respect to the focus of the gaussian beam. \n"
-            "                         This distance is measured along the propagation direction of the gaussian beam. \n"
-            "       - lenght       -> Size of the line (for the 2D case) or one side of the plane (for the 3D case) where the source will be inserted in nm. \n"
+            "       - w0           -> Beam waist of the gaussbeam in nm.\n"
+            "       - r0(3)        -> Array of coordinates of the focus of the gaussbeam in nm.\n"
+            "       - d_src        -> Distance from the position of the source respect to the focus of the gaussbeam. \n"
+            "                         This distance is measured along the propagation direction of the gaussbeam. \n"
+            "       - length       -> Size of the line (for the 2D case) or one side of the plane (for the 3D case) where the source will be inserted in nm. \n"
             "       - height       -> Height of the plane (for the 3D case) where the source will be inserted in nm. \n "
 
             " \n"
@@ -466,7 +552,7 @@ def sources_file(source_type=None, polarization=None, field_amp=None, frequency=
 
         return
 
-    if source_type is None or source_type != "point" and source_type != "plane_wave" and source_type != "gaussian_beam":
+    if source_type is None or source_type != "point" and source_type != "plane_wave" and source_type != "gaussbeam":
         print("Error: source_type must be specified.")
         return
     
@@ -485,11 +571,11 @@ def sources_file(source_type=None, polarization=None, field_amp=None, frequency=
                   "       must be specified for a \"plane_wave\" source.")
             return
 
-    if source_type == "gaussian_beam":
+    if source_type == "gaussbeam":
         if field_amp is None or phi is None or theta is None or psi is None or frequency is None or t0 is None or tau is None \
-        or phase is None or w0 is None or r0 is None or d_src is None or lenght is None or height is None:
+        or phase is None or w0 is None or r0 is None or d_src is None or length is None or height is None:
         
-            print("Error: field_amp, phi, theta, psi, frequency, t0, tau, phase, w0, r0, d_src, lenght and height must be specified for a \"gaussian_beam\" source.")
+            print("Error: field_amp, phi, theta, psi, frequency, t0, tau, phase, w0, r0, d_src, length and height must be specified for a \"gaussbeam\" source.")
             return
         
         if not isinstance(r0, list) or len(r0) != 3:
@@ -520,10 +606,10 @@ def sources_file(source_type=None, polarization=None, field_amp=None, frequency=
         str(frequency) + "   " + str(t0) + "   " + str(tau) + "   " + str(x_min) + " " + str(x_max) + " " + str(y_min) + " " +  \
         str(y_max) + " " + str(z_min) + " " + str(z_max) + "   " + str(t_init) + "   " + str(t_end) + "   " + str(phase) + "\n")
 
-    if source_type == "gaussian_beam":
+    if source_type == "gaussbeam":
         source_file.write("\"" + source_type + "\"   " + str(field_amp) + "   " + str(phi)+ "   " + str(theta) + "   " + str(psi) + "   " + \
         str(frequency) + "   " + str(phase) + "   " + str(r0[0]) + " " + str(r0[1]) + " " + str(r0[2]) + "   " + str(w0) + "   " +    \
-        str(t0) + "   "+ str(tau) + "   " + str(d_src) + "   " + str(lenght) + "   " + str(height) + "\n")
+        str(t0) + "   "+ str(tau) + "   " + str(d_src) + "   " + str(length) + "   " + str(height) + "\n")
     source_file.close()
 
     return

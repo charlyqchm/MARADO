@@ -7,6 +7,7 @@ module factory_mod
 
     use q_sys_base_mod
     use q_sys_dftb_mod
+    use q_sys_TB_mod
 
     implicit none
 
@@ -37,6 +38,8 @@ subroutine q_system_factory(sys_type, n_sys, q_sys_obj)
     select case (sys_type)
     case (Q_SYS_DFTB)
         allocate(TQ_sys_dftb :: q_sys_obj(n_sys))
+    case (Q_SYS_TB)
+        allocate(TQ_sys_TB :: q_sys_obj(n_sys))
     case default
         error stop "The selected quantum system type is not implemented."
     end select
