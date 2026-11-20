@@ -55,6 +55,19 @@ module q_sys_dftb_mod
             procedure :: write_output => write_output_dftb
     end type TQ_sys_dftb
 
+    !Node of a parsed DFTB+-like (HSD) input. The nodes are stored in the order they appear in
+    !the file, and "depth" gives the nesting level (0 = top level).
+    type :: hsd_node
+        character(len=64)  :: name     = ""
+        character(len=256) :: value    = ""
+        integer            :: depth    = 0
+        logical            :: is_block = .false.
+    end type hsd_node
+
+    type :: fnode_ptr
+        type(fnode), pointer :: p => null()
+    end type fnode_ptr
+
 contains
 
 !###################################################################################################
@@ -89,7 +102,10 @@ subroutine init_dftb(this, id, id_file, dt, t_steps, rank, print_on)
     logical            :: ion_dyn = .false.
     logical            :: scc = .true. !This could be read from the file in the future
     real(dp)           :: scc_tol
+    integer            :: n_hsd
+    integer            :: i_hsd
 
+    type(hsd_node)    , allocatable :: hsd_nodes(:)
     character(len = 2), allocatable :: atom_type_list(:)
     character(len = 2), allocatable :: max_ang_orb(:)
     real(dp)          , allocatable :: atomNetCarges(:,:)
@@ -294,6 +310,7 @@ subroutine init_dftb(this, id, id_file, dt, t_steps, rank, print_on)
     coor_aux = M_ZERO
     call setChildValue(this%pGeo, "TypesAndCoordinates", reshape(atom_type, &
                        [1, size(atom_type)]), coor_aux)
+
     call setChild(this%pRoot, "Hamiltonian", this%pHam)
     call setChild(this%pHam, "Dftb", this%pDftb)
     call setChildValue(this%pDftb, "Scc", scc)
@@ -303,6 +320,12 @@ subroutine init_dftb(this, id, id_file, dt, t_steps, rank, print_on)
     do j=1, n_at_typ
         call setChildValue(this%pMaxAng, atom_type_list(j), max_ang_orb(j))
     end do
+
+    !Extra DFTB+ options (HubbardDerivs, Dispersion, ThirdOrderFull, ...) are read from the
+    !DFTB+-like block "Hamiltonian = DFTB { ... }" of the molecule file.
+    call hsd_read_file(input_name, hsd_nodes, n_hsd)
+    i_hsd = hsd_find_node(hsd_nodes, n_hsd, "Hamiltonian/Dftb")
+    if (i_hsd > 0) call hsd_apply_children(hsd_nodes, n_hsd, i_hsd, this%pDftb)
 
     call setChild(this%pDftb, "SlaterKosterFiles", this%pSlakos)
     call setChild(this%pSlakos, "Type2FileNames", this%pType2Files)
@@ -355,6 +378,11 @@ subroutine init_dftb(this, id, id_file, dt, t_steps, rank, print_on)
         if (iachar(external_src_file(ic:ic)) < 32) external_src_file(ic:ic) = ' '
     end do
     external_src_file = adjustl(external_src_file)
+
+    !The DFTB+-like block can follow directly, in which case there is no external source
+    if (index(external_src_file, '=') > 0 .or. index(external_src_file, '{') > 0) then
+        external_src_file = ' '
+    end if
 
     if (ierr /= 0 .or. len_trim(external_src_file) == 0) then
         this%external_src = .false.
@@ -612,6 +640,451 @@ subroutine write_output_dftb(this, time, i_group, print_q_step)
     end if
 
 end subroutine write_output_dftb
+
+!###################################################################################################
+! Reader of a DFTB+-like (HSD) input block inside the molecule_*.in file.
+!
+! Supported syntax (one item per line, '#' starts a comment):
+!
+!   Hamiltonian = DFTB {
+!       ThirdOrderFull = Yes
+!       HubbardDerivs {
+!           C = -0.1492
+!       }
+!       Dispersion = DftD3 {
+!           Damping = BeckeJohnson {
+!               a1 = 0.5719
+!           }
+!       }
+!   }
+!
+! "Name = Method {" is equivalent to "Name { Method {". Not supported: unit modifiers
+! ("Name [Angstrom] = ..."), data blocks ("Name = {" ... "}"), and braces sharing a line with values.
+! The block starts at the first line containing '=' or '{', so it must come after the
+! legacy lines (and after the external source line, which may be left empty).
+!###################################################################################################
+
+subroutine hsd_read_file(file_name, nodes, n_nodes)
+
+    character(len=*)           , intent(in)  :: file_name
+    type(hsd_node), allocatable, intent(out) :: nodes(:)
+    integer                    , intent(out) :: n_nodes
+
+    integer, parameter :: MAX_OPEN = 64
+
+    character(len=512) :: line
+    character(len=512) :: head
+    character(len=64)  :: name
+    character(len=64)  :: method
+    integer            :: funit, ierr
+    integer            :: i_line, i_eq, n_line
+    integer            :: depth, n_open, n_levels
+    integer            :: levels(MAX_OPEN)
+    logical            :: started
+
+    allocate(nodes(32))
+    n_nodes = 0
+    depth   = 0
+    n_open  = 0
+    i_line  = 0
+    started = .false.
+
+    open(newunit=funit, file=file_name, status='old', action='read', iostat=ierr)
+    if (ierr /= 0) then
+        write(*,*) "Error: Could not open molecule file ", trim(file_name)
+        stop
+    end if
+
+    do
+        read(funit, '(A)', iostat=ierr) line
+        if (ierr /= 0) exit
+        i_line = i_line + 1
+
+        call hsd_clean_line(line)
+        if (len_trim(line) == 0) cycle
+
+        if (.not. started) then
+            if (index(line, '=') == 0 .and. index(line, '{') == 0) cycle
+            started = .true.
+        end if
+
+        do while (line(1:1) == '}')
+            if (n_open == 0) call hsd_error(file_name, i_line, "unmatched '}'")
+            depth  = depth - levels(n_open)
+            n_open = n_open - 1
+            line   = adjustl(line(2:))
+        end do
+        if (len_trim(line) == 0) cycle
+
+        n_line = len_trim(line)
+
+        if (line(n_line:n_line) == '{') then
+
+            head = line(:n_line-1)
+            i_eq = index(head, '=')
+
+            if (i_eq > 0) then
+                name   = adjustl(head(:i_eq-1))
+                method = adjustl(head(i_eq+1:))
+                if (len_trim(method) == 0) call hsd_error(file_name, i_line, &
+                    "data blocks 'Name = {' are not supported")
+                call hsd_check_name(file_name, i_line, name)
+                call hsd_check_name(file_name, i_line, method)
+                call hsd_add_node(nodes, n_nodes, name,   "", depth,     .true.)
+                call hsd_add_node(nodes, n_nodes, method, "", depth + 1, .true.)
+                n_levels = 2
+            else
+                name = adjustl(head)
+                call hsd_check_name(file_name, i_line, name)
+                call hsd_add_node(nodes, n_nodes, name, "", depth, .true.)
+                n_levels = 1
+            end if
+
+            if (n_open == MAX_OPEN) call hsd_error(file_name, i_line, "blocks nested too deeply")
+            n_open = n_open + 1
+            levels(n_open) = n_levels
+            depth = depth + n_levels
+
+        else
+
+            i_eq = index(line, '=')
+            if (i_eq == 0) call hsd_error(file_name, i_line, "expected 'Name = value' or 'Name {'")
+
+            name = adjustl(line(:i_eq-1))
+            call hsd_check_name(file_name, i_line, name)
+            if (len_trim(line(i_eq+1:)) == 0) call hsd_error(file_name, i_line, "empty value")
+            call hsd_add_node(nodes, n_nodes, name, adjustl(line(i_eq+1:)), depth, .false.)
+
+        end if
+    end do
+
+    close(funit)
+
+    if (n_open /= 0) call hsd_error(file_name, i_line, "missing '}' at the end of the file")
+
+end subroutine hsd_read_file
+
+!###################################################################################################
+
+subroutine hsd_error(file_name, i_line, msg)
+
+    character(len=*), intent(in) :: file_name
+    integer         , intent(in) :: i_line
+    character(len=*), intent(in) :: msg
+
+    write(*,*) "Error reading DFTB+-like input from ", trim(file_name), " (line", i_line, "): ", msg
+    stop
+
+end subroutine hsd_error
+
+!###################################################################################################
+
+subroutine hsd_check_name(file_name, i_line, name)
+
+    character(len=*), intent(in) :: file_name
+    integer         , intent(in) :: i_line
+    character(len=*), intent(in) :: name
+
+    if (len_trim(name) == 0) call hsd_error(file_name, i_line, "missing name")
+    if (index(trim(name), ' ') > 0) call hsd_error(file_name, i_line, "invalid name '"//trim(name)//"'")
+
+end subroutine hsd_check_name
+
+!###################################################################################################
+
+subroutine hsd_clean_line(line)
+
+    character(len=*), intent(inout) :: line
+
+    integer :: i
+
+    do i = 1, len(line)
+        if (line(i:i) == char(9) .or. line(i:i) == char(13)) line(i:i) = ' '
+    end do
+
+    i = index(line, '#')
+    if (i > 0) line(i:) = ' '
+
+    line = adjustl(line)
+
+end subroutine hsd_clean_line
+
+!###################################################################################################
+
+subroutine hsd_add_node(nodes, n_nodes, name, value, depth, is_block)
+
+    type(hsd_node), allocatable, intent(inout) :: nodes(:)
+    integer                    , intent(inout) :: n_nodes
+    character(len=*)           , intent(in)    :: name
+    character(len=*)           , intent(in)    :: value
+    integer                    , intent(in)    :: depth
+    logical                    , intent(in)    :: is_block
+
+    type(hsd_node), allocatable :: tmp(:)
+
+    if (n_nodes == size(nodes)) then
+        allocate(tmp(2*size(nodes)))
+        tmp(1:n_nodes) = nodes(1:n_nodes)
+        call move_alloc(tmp, nodes)
+    end if
+
+    n_nodes = n_nodes + 1
+    nodes(n_nodes)%name     = trim(name)
+    nodes(n_nodes)%value    = trim(value)
+    nodes(n_nodes)%depth    = depth
+    nodes(n_nodes)%is_block = is_block
+
+end subroutine hsd_add_node
+
+!###################################################################################################
+
+function hsd_to_lower(str) result(low)
+
+    character(len=*), intent(in) :: str
+    character(len=len(str))      :: low
+
+    integer :: i, ic
+
+    low = str
+    do i = 1, len(str)
+        ic = iachar(str(i:i))
+        if (ic >= iachar('A') .and. ic <= iachar('Z')) low(i:i) = achar(ic + 32)
+    end do
+
+end function hsd_to_lower
+
+!###################################################################################################
+
+!Returns the index of the block given by a "/"-separated path (case insensitive), or 0 if absent.
+function hsd_find_node(nodes, n_nodes, path) result(idx)
+
+    type(hsd_node), intent(in) :: nodes(:)
+    integer       , intent(in) :: n_nodes
+    character(len=*), intent(in) :: path
+    integer                    :: idx
+
+    character(len=len(path)) :: rest
+    character(len=64)        :: comp
+    integer :: i_sl, j, k, lo, hi, d
+
+    idx  = 0
+    lo   = 1
+    hi   = n_nodes
+    d    = 0
+    rest = adjustl(path)
+
+    do while (len_trim(rest) > 0)
+
+        i_sl = index(rest, '/')
+        if (i_sl == 0) then
+            comp = rest
+            rest = ' '
+        else
+            comp = rest(:i_sl-1)
+            rest = adjustl(rest(i_sl+1:))
+        end if
+
+        idx = 0
+        do j = lo, hi
+            if (nodes(j)%depth == d .and. nodes(j)%is_block .and. &
+                hsd_to_lower(trim(nodes(j)%name)) == hsd_to_lower(trim(comp))) then
+                idx = j
+                exit
+            end if
+        end do
+        if (idx == 0) return
+
+        k = idx + 1
+        do while (k <= n_nodes)
+            if (nodes(k)%depth <= d) exit
+            k = k + 1
+        end do
+        lo = idx + 1
+        hi = k - 1
+        d  = d + 1
+
+    end do
+
+end function hsd_find_node
+
+!###################################################################################################
+
+!Creates in the DFTB+ tree "target" all the descendants of the block nodes(idx).
+subroutine hsd_apply_children(nodes, n_nodes, idx, target)
+
+    type(hsd_node), intent(in) :: nodes(:)
+    integer       , intent(in) :: n_nodes
+    integer       , intent(in) :: idx
+    type(fnode), pointer       :: target
+
+    type(fnode_ptr), allocatable :: ptrs(:)
+    integer :: j, d, d0
+
+    d0 = nodes(idx)%depth
+    allocate(ptrs(0:maxval(nodes(1:n_nodes)%depth) + 1))
+    ptrs(d0)%p => target
+
+    do j = idx + 1, n_nodes
+        d = nodes(j)%depth
+        if (d <= d0) exit
+
+        if (nodes(j)%is_block) then
+            call setChild(ptrs(d-1)%p, trim(nodes(j)%name), ptrs(d)%p)
+        else
+            call hsd_set_value(ptrs(d-1)%p, trim(nodes(j)%name), trim(nodes(j)%value))
+        end if
+    end do
+
+    deallocate(ptrs)
+
+end subroutine hsd_apply_children
+
+!###################################################################################################
+
+!Sets "value" as a logical, integer, real, numeric array or string, according to its content.
+subroutine hsd_set_value(parent, name, value)
+
+    type(fnode), pointer         :: parent
+    character(len=*), intent(in) :: name
+    character(len=*), intent(in) :: value
+
+    character(len=256), allocatable :: tok(:)
+    real(dp)          , allocatable :: r_arr(:)
+    integer           , allocatable :: i_arr(:)
+    character(len=256) :: low
+    integer :: n_tok, i
+    logical :: all_int, all_real
+
+    if (value(1:1) == '"' .or. value(1:1) == "'") then
+        call setChildValue(parent, name, value(2:len(value)-1))
+        return
+    end if
+
+    call hsd_split_tokens(value, tok, n_tok)
+
+    all_int  = .true.
+    all_real = .true.
+    do i = 1, n_tok
+        if (.not. hsd_is_integer(tok(i))) all_int = .false.
+        if (.not. hsd_is_real(tok(i)))    all_real = .false.
+    end do
+
+    if (n_tok == 1) then
+        low = hsd_to_lower(tok(1))
+        if (trim(low) == 'yes' .or. trim(low) == 'true') then
+            call setChildValue(parent, name, .true.)
+        else if (trim(low) == 'no' .or. trim(low) == 'false') then
+            call setChildValue(parent, name, .false.)
+        else if (all_int) then
+            allocate(i_arr(1))
+            read(tok(1), *) i_arr(1)
+            call setChildValue(parent, name, i_arr(1))
+        else if (all_real) then
+            allocate(r_arr(1))
+            read(tok(1), *) r_arr(1)
+            call setChildValue(parent, name, r_arr(1))
+        else
+            call setChildValue(parent, name, trim(value))
+        end if
+    else if (all_int) then
+        allocate(i_arr(n_tok))
+        read(value, *) i_arr
+        call setChildValue(parent, name, i_arr)
+    else if (all_real) then
+        allocate(r_arr(n_tok))
+        read(value, *) r_arr
+        call setChildValue(parent, name, r_arr)
+    else
+        call setChildValue(parent, name, trim(value))
+    end if
+
+end subroutine hsd_set_value
+
+!###################################################################################################
+
+subroutine hsd_split_tokens(str, tok, n_tok)
+
+    character(len=*)               , intent(in)  :: str
+    character(len=256), allocatable, intent(out) :: tok(:)
+    integer                        , intent(out) :: n_tok
+
+    integer :: i, i0, n
+    logical :: in_tok
+
+    n = len_trim(str)
+
+    n_tok  = 0
+    in_tok = .false.
+    do i = 1, n
+        if (str(i:i) == ' ' .or. str(i:i) == ',') then
+            in_tok = .false.
+        else if (.not. in_tok) then
+            in_tok = .true.
+            n_tok  = n_tok + 1
+        end if
+    end do
+
+    allocate(tok(max(n_tok, 1)))
+    tok = ' '
+
+    n_tok  = 0
+    in_tok = .false.
+    i0     = 1
+    do i = 1, n + 1
+        if (i > n) then
+            if (in_tok) tok(n_tok) = str(i0:n)
+        else if (str(i:i) == ' ' .or. str(i:i) == ',') then
+            if (in_tok) tok(n_tok) = str(i0:i-1)
+            in_tok = .false.
+        else if (.not. in_tok) then
+            in_tok = .true.
+            n_tok  = n_tok + 1
+            i0     = i
+        end if
+    end do
+
+end subroutine hsd_split_tokens
+
+!###################################################################################################
+
+function hsd_is_integer(tok) result(ok)
+
+    character(len=*), intent(in) :: tok
+    logical                      :: ok
+
+    integer :: n, i0
+
+    n  = len_trim(tok)
+    i0 = 1
+    if (n > 0) then
+        if (tok(1:1) == '+' .or. tok(1:1) == '-') i0 = 2
+    end if
+
+    ok = n >= i0
+    if (ok) ok = verify(tok(i0:n), '0123456789') == 0
+
+end function hsd_is_integer
+
+!###################################################################################################
+
+function hsd_is_real(tok) result(ok)
+
+    character(len=*), intent(in) :: tok
+    logical                      :: ok
+
+    real(dp) :: val
+    integer  :: n, ierr
+
+    n  = len_trim(tok)
+    ok = n > 0
+    if (ok) ok = verify(tok(:n), '0123456789+-.eEdD') == 0
+    if (ok) ok = scan(tok(:n), '0123456789') > 0
+    if (ok) then
+        read(tok(:n), *, iostat=ierr) val
+        ok = ierr == 0
+    end if
+
+end function hsd_is_real
 
 !###################################################################################################
 end module q_sys_dftb_mod

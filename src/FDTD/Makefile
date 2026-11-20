@@ -24,7 +24,16 @@ BLAS_LIBS ?= -lblas -llapack
 RPATH_FLAG ?=
 endif
 
-LIBS ?= -ldftbplus $(BLAS_LIBS)
+DFTB_EXT ?= 0
+
+ifeq ($(DFTB_EXT),1)
+DFTB_EXT_LIBS ?= -ls-dftd3 -lmctc-lib -lmstore -ltoml-f
+else
+DFTB_EXT_LIBS ?=
+endif
+
+
+LIBS ?= -ldftbplus $(DFTB_EXT_LIBS) $(BLAS_LIBS)
 INCLUDE_DIR ?= $(DFTB_INSTALL_DIR)/include/dftbplus/modfiles
 LIB_DIR ?= $(DFTB_LIB_DIR)
 
